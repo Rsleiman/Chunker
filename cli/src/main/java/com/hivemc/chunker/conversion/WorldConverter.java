@@ -30,9 +30,12 @@ import com.hivemc.chunker.scheduling.task.Environment;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
 import com.hivemc.chunker.scheduling.task.TrackedTask;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -737,6 +740,26 @@ public class WorldConverter implements Converter {
                     return true; // Dimension no longer exists
                 }
             });
+
+            // Apply dimension remapping to structure volumes
+            level.getStructureVolumes().removeIf(volume -> {
+                Optional<Dimension> newDimension = worldConverter.getNewDimension(volume.getDimension());
+                if (newDimension.isPresent()) {
+                    volume.setDimension(newDimension.get());
+                    return false;
+                } else {
+                    return true; // Dimension no longer exists
+                }
+            });
+
+            // Re-key the columns near structures to the new dimensions
+            Map<Dimension, LongSet> structureColumns = new HashMap<>();
+            for (Map.Entry<Dimension, LongSet> entry : level.getStructureColumns().entrySet()) {
+                Optional<Dimension> newDimension = worldConverter.getNewDimension(entry.getKey());
+                if (newDimension.isEmpty()) continue; // Dimension no longer exists
+                structureColumns.computeIfAbsent(newDimension.get(), (ignored) -> new LongOpenHashSet()).addAll(entry.getValue());
+            }
+            level.setStructureColumns(structureColumns);
 
             // Turn the current settings to JSON
             JsonObject baseSettings = level.getSettings().toJSON();

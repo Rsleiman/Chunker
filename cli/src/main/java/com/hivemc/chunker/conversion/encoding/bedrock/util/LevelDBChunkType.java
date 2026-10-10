@@ -27,7 +27,8 @@ public enum LevelDBChunkType {
     METADATA_HASH((byte) 63),
     BLENDING_DATA((byte) 64),
     ACTOR_DIGEST_VERSION((byte) 65),
-    LEGACY_VERSION((byte) 118); // Legacy version byte (later moved to 44)
+    LEGACY_VERSION((byte) 118), // Legacy version byte (later moved to 44)
+    AABB_VOLUMES((byte) 119); // Bounding boxes of generated structures
 
     private final byte id;
 

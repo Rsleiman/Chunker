@@ -79,12 +79,13 @@ public class JavaColumnWriter implements ColumnWriter {
         });
 
         // Write the chunk to NBT
-        ArrayList<Task<TagWithName<?>>> processing = new ArrayList<>(5);
+        ArrayList<Task<TagWithName<?>>> processing = new ArrayList<>(6);
         processing.add(Task.async("Writing HeightMap", TaskWeight.NORMAL, this::writeHeightMap, chunkerColumn));
         processing.add(Task.async("Writing Biomes", TaskWeight.NORMAL, this::writeBiomes, chunkerColumn));
         processing.add(Task.async("Writing Entities", TaskWeight.HIGH, this::writeEntities, chunkerColumn));
         processing.add(Task.async("Writing Block Entities", TaskWeight.HIGH, this::writeBlockEntities, chunkerColumn));
         processing.add(Task.async("Writing Chunks", TaskWeight.HIGHER, this::writeChunks, chunkerColumn));
+        processing.add(Task.async("Writing Structures", TaskWeight.LOW, this::writeStructures, chunkerColumn));
 
         // Write POI
         Task.asyncConsume("Writing POI", TaskWeight.LOW, this::writePOI, chunkerColumn);
@@ -277,6 +278,17 @@ public class JavaColumnWriter implements ColumnWriter {
             converter.logMissingMapping(Converter.MissingMappingType.BLOCK_ENTITY, blockEntity.getClass().getSimpleName());
             return null;
         }
+    }
+
+    /**
+     * Write the structure starts and references of the column.
+     *
+     * @param column the column being written.
+     * @return the structures as NBT or null if the column has no structure data (or it is not supported).
+     */
+    @Nullable
+    protected TagWithName<?> writeStructures(ChunkerColumn column) {
+        return null;
     }
 
     /**

@@ -1,10 +1,15 @@
 package com.hivemc.chunker.conversion.intermediate.level;
 
 import com.hivemc.chunker.conversion.intermediate.level.map.ChunkerMap;
+import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -16,6 +21,8 @@ public class ChunkerLevel {
     private List<ChunkerMap> maps;
     private @Nullable CompoundTag originalLevelData;
     private List<ChunkerPortal> portals;
+    private List<ChunkerStructureVolume> structureVolumes = new ArrayList<>();
+    private Map<Dimension, LongSet> structureColumns = new HashMap<>();
 
     /**
      * Create a new level.
@@ -133,6 +140,42 @@ public class ChunkerLevel {
     }
 
     /**
+     * Get the structure volumes read from the world (Bedrock stores these per chunk).
+     *
+     * @return a list of the structure volumes.
+     */
+    public List<ChunkerStructureVolume> getStructureVolumes() {
+        return structureVolumes;
+    }
+
+    /**
+     * Set the structure volumes of the level.
+     *
+     * @param structureVolumes the structure volumes.
+     */
+    public void setStructureVolumes(List<ChunkerStructureVolume> structureVolumes) {
+        this.structureVolumes = structureVolumes;
+    }
+
+    /**
+     * Get the chunk columns which are written and are near a structure, packed as (x &amp; 0xFFFFFFFF) | (z &lt;&lt; 32).
+     *
+     * @return a map of the packed columns for each dimension.
+     */
+    public Map<Dimension, LongSet> getStructureColumns() {
+        return structureColumns;
+    }
+
+    /**
+     * Set the chunk columns which are written and are near a structure.
+     *
+     * @param structureColumns a map of the packed columns for each dimension.
+     */
+    public void setStructureColumns(Map<Dimension, LongSet> structureColumns) {
+        this.structureColumns = structureColumns;
+    }
+
+    /**
      * Find the map index based on a mapId.
      *
      * @param originalMapId the mapId to look for.
@@ -167,6 +210,8 @@ public class ChunkerLevel {
                 ", maps=" + getMaps() +
                 ", originalLevelData=" + getOriginalLevelData() +
                 ", portals=" + getPortals() +
+                ", structureVolumes=" + getStructureVolumes() +
+                ", structureColumns=" + getStructureColumns() +
                 '}';
     }
 }

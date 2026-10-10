@@ -4,19 +4,27 @@ import com.hivemc.chunker.conversion.encoding.base.Converter;
 import com.hivemc.chunker.conversion.encoding.base.writer.ColumnWriter;
 import com.hivemc.chunker.conversion.encoding.base.writer.WorldWriter;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.JavaResolvers;
+import com.hivemc.chunker.conversion.handlers.structure.StructureAssembler;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerStructureVolume;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.nbt.io.Writer;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -28,6 +36,7 @@ public class JavaWorldWriter implements WorldWriter {
     protected final Converter converter;
     protected final JavaResolvers resolvers;
     protected final Map<File, RandomAccessFile> mcaFiles = new ConcurrentHashMap<>();
+    protected final Map<Dimension, Optional<StructureAssembler.DimensionStructures>> structures = new ConcurrentHashMap<>();
 
     /**
      * Create a new java writer.
@@ -67,6 +76,36 @@ public class JavaWorldWriter implements WorldWriter {
                 converter.logNonFatalException(e);
             }
         }
+    }
+
+    /**
+     * Get the structures which should be written for a dimension. The structures are assembled once per dimension and
+     * shared between all the column writers.
+     *
+     * @param dimension the dimension to get the structures for.
+     * @return the structures or null if there are none to write.
+     */
+    @Nullable
+    public StructureAssembler.DimensionStructures getStructures(Dimension dimension) {
+        return structures.computeIfAbsent(dimension, (ignored) -> {
+            try {
+                Optional<ChunkerLevel> level = converter.level();
+                if (level.isEmpty()) return Optional.empty();
+
+                // Collect the volumes of this dimension
+                List<ChunkerStructureVolume> volumes = level.get().getStructureVolumes().stream()
+                        .filter(volume -> dimension.equals(volume.getDimension()))
+                        .toList();
+                if (volumes.isEmpty()) return Optional.empty();
+
+                LongSet columns = level.get().getStructureColumns().get(dimension);
+                StructureAssembler.DimensionStructures result = StructureAssembler.assembleDimension(volumes, columns != null ? columns : new LongOpenHashSet());
+                return result.isEmpty() ? Optional.empty() : Optional.of(result);
+            } catch (Exception e) {
+                converter.logNonFatalException(new Exception("Failed to assemble structures for " + dimension.getIdentifier(), e));
+                return Optional.empty();
+            }
+        }).orElse(null);
     }
 
     /**

@@ -6,6 +6,8 @@ import com.hivemc.chunker.conversion.encoding.base.reader.LevelReader;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.BedrockReaderWriter;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
 import com.hivemc.chunker.conversion.encoding.bedrock.util.BedrockChunkCoordinateSet;
+import com.hivemc.chunker.conversion.encoding.bedrock.util.BedrockStructureParser;
+import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType;
 import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey;
 import com.hivemc.chunker.conversion.handlers.LevelConversionHandler;
 import com.hivemc.chunker.conversion.handlers.WorldConversionHandler;
@@ -28,6 +30,8 @@ import com.hivemc.chunker.scheduling.task.ProgressiveTask;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
 import it.unimi.dsi.fastutil.bytes.Byte2ObjectAVLTreeMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.iq80.leveldb.*;
 import org.iq80.leveldb.impl.Iq80DBFactory;
@@ -201,10 +205,11 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
         ProgressiveTask<Void> parseLocalPlayer = Task.asyncConsume("Parsing Local Player", TaskWeight.NORMAL, this::parseLocalPlayer, output);
         ProgressiveTask<Void> parseMaps = Task.asyncConsume("Parsing Saved Maps", TaskWeight.NORMAL, this::parseMaps, output);
         ProgressiveTask<Void> parsePortals = Task.asyncConsume("Parsing Portals", TaskWeight.NORMAL, this::parsePortals, output);
+        ProgressiveTask<Void> parseStructures = Task.asyncConsume("Parsing Structures", TaskWeight.NORMAL, this::parseStructures, output);
         ProgressiveTask<Void> parseCustomBiomes = Task.asyncConsume("Parsing Biome List", TaskWeight.NORMAL, this::parseBiomeList, output);
 
         // When those tasks are done we can convert the level
-        return Task.join(parseLevelSettings, parseLocalPlayer, parseMaps, parsePortals, parseCustomBiomes)
+        return Task.join(parseLevelSettings, parseLocalPlayer, parseMaps, parsePortals, parseStructures, parseCustomBiomes)
                 .thenUnwrap("Converting Level", TaskWeight.LOW, levelConversionHandler::convertLevel, output);
     }
 
@@ -560,6 +565,125 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
         } catch (Exception e) {
             converter.logNonFatalException(e);
         }
+    }
+
+    /**
+     * Parse all the structure data in the world (stored per chunk) and the chunk columns which are written near it.
+     *
+     * @param output the output to add the structure data to.
+     */
+    protected void parseStructures(ChunkerLevel output) {
+        List<ChunkerStructureVolume> volumes = new ArrayList<>();
+        Map<Dimension, LongSet> structureColumns = new HashMap<>();
+        output.setStructureVolumes(volumes);
+        output.setStructureColumns(structureColumns);
+
+        try {
+            DimensionRegistry dimensionRegistry = converter.getDimensionRegistry();
+            Map<Dimension, LongSet> presentColumns = new HashMap<>();
+            List<ChunkerStructureVolume> candidates = new ArrayList<>();
+            Set<String> reportedIds = new HashSet<>();
+
+            // Scan the whole database once
+            try (DBIterator iterator = database.iterator(new ReadOptions().fillCache(false))) {
+                iterator.seekToFirst();
+                while (iterator.hasNext()) {
+                    Map.Entry<byte[], byte[]> entry = iterator.next();
+                    byte[] key = entry.getKey();
+                    try {
+                        // Only chunk based keys are of interest
+                        if (key.length < 9) continue;
+
+                        // Resolve the dimension
+                        Dimension dimension = Dimension.OVERWORLD;
+                        if (key.length >= 13) {
+                            dimension = dimensionRegistry.fromBedrock(LevelDBKey.readLittleEndianInt(key, 8), null);
+                            if (dimension == null) continue; // Non-chunk keys can share the length
+                        }
+
+                        // Columns which are present
+                        if (LevelDBKey.isColumnKey(key)) {
+                            presentColumns.computeIfAbsent(dimension, (ignored) -> new LongOpenHashSet()).add(ChunkerStructureVolume.packChunk(
+                                    LevelDBKey.readLittleEndianInt(key, 0),
+                                    LevelDBKey.readLittleEndianInt(key, 4)
+                            ));
+                            continue;
+                        }
+
+                        // Structure data
+                        if (key.length != 9 && key.length != 13) continue;
+                        byte type = key[key.length - 1];
+                        if (type != LevelDBChunkType.AABB_VOLUMES.getId() && type != LevelDBChunkType.HARDCODED_SPAWNERS.getId()) continue;
+                        if (LevelDBKey.startsWith(key, LevelDBKey.MAP_PREFIX)
+                                || LevelDBKey.startsWith(key, LevelDBKey.ACTOR_PREFIX)
+                                || LevelDBKey.startsWith(key, LevelDBKey.DIGP_PREFIX)) {
+                            continue;
+                        }
+
+                        ChunkCoordPair chunk = new ChunkCoordPair(LevelDBKey.readLittleEndianInt(key, 0), LevelDBKey.readLittleEndianInt(key, 4));
+                        List<ChunkerStructureVolume> parsed;
+                        if (type == LevelDBChunkType.AABB_VOLUMES.getId()) {
+                            parsed = BedrockStructureParser.parseAABBVolumes(entry.getValue(), dimension, chunk, converter::logNonFatalException);
+                        } else {
+                            parsed = BedrockStructureParser.parseHardcodedSpawners(entry.getValue(), dimension, chunk, converter::logNonFatalException);
+                        }
+
+                        // Only keep the structures which can be converted
+                        for (ChunkerStructureVolume volume : parsed) {
+                            String javaId = BedrockStructureParser.toJavaStructureId(volume.getStructureId());
+                            if (javaId == null) {
+                                if (reportedIds.add(volume.getStructureId())) {
+                                    converter.logNonFatalException(new Exception("Structure " + volume.getStructureId() + " cannot be converted and will be skipped"));
+                                }
+                                continue;
+                            }
+                            candidates.add(volume);
+                        }
+                    } catch (Exception e) {
+                        converter.logNonFatalException(e);
+                    }
+                }
+            }
+
+            // Only keep the volumes of columns which are written
+            Map<Dimension, Boolean> dimensionProcessed = new HashMap<>();
+            for (ChunkerStructureVolume volume : candidates) {
+                Dimension dimension = volume.getDimension();
+                LongSet present = presentColumns.get(dimension);
+                if (present == null || !dimensionProcessed.computeIfAbsent(dimension, converter::shouldProcessDimension)) continue;
+
+                ChunkCoordPair chunk = volume.getSourceChunk();
+                if (!isWrittenColumn(dimension, chunk.chunkX(), chunk.chunkZ(), present)) continue;
+                volumes.add(volume);
+
+                // Written columns near the structure (they can reference structures that overlap into them)
+                LongSet near = structureColumns.computeIfAbsent(dimension, (ignored) -> new LongOpenHashSet());
+                for (int x = chunk.chunkX() - 1; x <= chunk.chunkX() + 1; x++) {
+                    for (int z = chunk.chunkZ() - 1; z <= chunk.chunkZ() + 1; z++) {
+                        long packed = ChunkerStructureVolume.packChunk(x, z);
+                        if (near.contains(packed)) continue;
+                        if (isWrittenColumn(dimension, x, z, present)) near.add(packed);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            converter.logNonFatalException(e);
+        }
+    }
+
+    /**
+     * Check whether a column will be written by the converter.
+     *
+     * @param dimension the dimension of the column.
+     * @param chunkX    the X of the chunk.
+     * @param chunkZ    the Z of the chunk.
+     * @param present   the columns which are present in the database.
+     * @return true if the column exists and is processed.
+     */
+    private boolean isWrittenColumn(Dimension dimension, int chunkX, int chunkZ, LongSet present) {
+        if (!present.contains(ChunkerStructureVolume.packChunk(chunkX, chunkZ))) return false;
+        return converter.shouldProcessRegion(dimension, new RegionCoordPair(chunkX >> 5, chunkZ >> 5))
+                && converter.shouldProcessColumn(dimension, new ChunkCoordPair(chunkX, chunkZ));
     }
 
     /**
