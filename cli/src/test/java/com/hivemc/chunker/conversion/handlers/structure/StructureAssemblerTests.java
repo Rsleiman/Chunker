@@ -61,11 +61,10 @@ public class StructureAssemblerTests {
             assertTrue(written.contains(pack(start.chunkX(), start.chunkZ())));
         }
 
-        // One piece for each box which isn't a root, plus the roots of the chunks (50,16) and (51,15) which are a
-        // separate instance without any pieces
+        // One piece for each box which isn't a root (the root-only chunks (50,16) and (51,15) produce no start)
         int expectedPieces = volumes.stream().mapToInt(volume -> volume.getPieces().size()).sum();
         assertEquals(237, expectedPieces);
-        assertEquals(237 + 2, starts.stream().mapToInt(start -> start.pieces().size()).sum());
+        assertEquals(237, starts.stream().mapToInt(start -> start.pieces().size()).sum());
 
         // Every piece is inside the chunk of the volume which stored it
         Set<ChunkerBoundingBox> pieceBoxes = new HashSet<>();
@@ -92,6 +91,11 @@ public class StructureAssemblerTests {
         assertReferencesValid(result);
         for (ChunkerStructureVolume volume : volumes) {
             ChunkCoordPair chunk = volume.getSourceChunk();
+            if (chunk.equals(new ChunkCoordPair(50, 16)) || chunk.equals(new ChunkCoordPair(51, 15))) {
+                // Root-only instances have no pieces and so no start
+                assertNull(result.referencesByChunk().get(pack(chunk.chunkX(), chunk.chunkZ())));
+                continue;
+            }
             LongSet references = result.referencesByChunk().get(pack(chunk.chunkX(), chunk.chunkZ())).get("minecraft:fortress");
             assertNotNull(references, chunk.toString());
             assertFalse(references.isEmpty());
@@ -254,13 +258,14 @@ public class StructureAssemblerTests {
     }
 
     @Test
-    public void testRootIsUsedWhenThereAreNoPieces() {
+    public void testRootOnlyInstanceProducesNoStart() {
         ChunkerBoundingBox box = new ChunkerBoundingBox(0, 40, 0, 15, 80, 15);
         ChunkerStructureVolume volume = new ChunkerStructureVolume(Dimension.NETHER, "minecraft:fortress", new ChunkCoordPair(0, 0), box, List.of());
-        List<StructureAssembler.AssembledStart> starts = StructureAssembler.assemble("minecraft:fortress", List.of(volume), StructureTestData.chunks(List.of(volume)));
+        LongSet written = StructureTestData.chunks(List.of(volume));
 
-        assertEquals(1, starts.size());
-        assertEquals(1, starts.get(0).pieces().size());
-        assertEquals(box, starts.get(0).pieces().get(0).box());
+        assertTrue(StructureAssembler.assemble("minecraft:fortress", List.of(volume), written).isEmpty());
+        StructureAssembler.DimensionStructures result = StructureAssembler.assembleDimension(List.of(volume), written);
+        assertTrue(result.isEmpty());
+        assertTrue(result.referencesByChunk().isEmpty());
     }
 }

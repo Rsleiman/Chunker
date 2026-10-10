@@ -188,7 +188,7 @@ public class StructureAssembler {
                 continue;
             }
 
-            // Use the roots if there is no information about pieces
+            // An instance without any pieces only has empty volumes (the root is just the overall box), so it has no start
             boolean hasPieces = false;
             for (Unit unit : instance) {
                 if (!unit.pieces.isEmpty()) {
@@ -196,11 +196,7 @@ public class StructureAssembler {
                     break;
                 }
             }
-            if (!hasPieces) {
-                for (Unit unit : instance) {
-                    unit.pieces = new ArrayList<>(List.of(unit.box));
-                }
-            }
+            if (!hasPieces) continue;
             splitInstance(javaStructureId, instance, usedStartChunks, output);
         }
         return output;
