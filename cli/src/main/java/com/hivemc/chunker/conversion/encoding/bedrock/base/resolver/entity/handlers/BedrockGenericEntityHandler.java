@@ -58,7 +58,7 @@ public class BedrockGenericEntityHandler extends EntityHandler<BedrockResolvers,
         }
 
         // Leashes
-        BedrockEntityUUIDs.referenceUUID(input.getLong("LeasherID", -1)).ifPresent(holder -> value.put(ChunkerEntityProperty.LEASH_HOLDER, holder));
+        BedrockEntityUUIDs.referenceUUID(resolvers.converter(), input.getLong("LeasherID", -1)).ifPresent(holder -> value.put(ChunkerEntityProperty.LEASH_HOLDER, holder));
     }
 
     @Override

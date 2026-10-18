@@ -52,7 +52,7 @@ public final class BedrockNonLivingEntityReader {
             entity.put(ChunkerEntityProperty.EXPERIENCE_VALUE, input.getOptionalValue("experience value", Number.class).map(Number::intValue).orElse(1));
             readAgeAndHealth(input, entity);
         } else if (type == ChunkerVanillaEntityType.ARROW) {
-            readArrow(input, entity);
+            readArrow(resolvers, input, entity);
         }
 
         if (GenericEntityTypes.CONTAINERS.contains(type)) {
@@ -76,7 +76,7 @@ public final class BedrockNonLivingEntityReader {
         input.getOptionalValue("Health", Number.class).ifPresent(health -> entity.put(ChunkerEntityProperty.HEALTH, health.floatValue()));
     }
 
-    private static void readArrow(CompoundTag input, GenericEntity entity) {
+    private static void readArrow(BedrockResolvers resolvers, CompoundTag input, GenericEntity entity) {
         // A stuck arrow records the block it's in, a flying one records 0, 0, 0
         ListTag<IntTag, Integer> stuckToBlock = input.getList("StuckToBlockPos", IntTag.class, null);
         boolean inGround = stuckToBlock != null && stuckToBlock.size() == 3
@@ -87,6 +87,6 @@ public final class BedrockNonLivingEntityReader {
         int pickup = input.getByte("isCreative", (byte) 0) == 1 ? 2 : input.getByte("player", (byte) 0) == 1 ? 1 : 0;
         entity.put(ChunkerEntityProperty.PICKUP, pickup);
 
-        BedrockEntityUUIDs.referenceUUID(input.getLong("OwnerID", -1)).ifPresent(owner -> entity.put(ChunkerEntityProperty.OWNER, owner));
+        BedrockEntityUUIDs.referenceUUID(resolvers.converter(), input.getLong("OwnerID", -1)).ifPresent(owner -> entity.put(ChunkerEntityProperty.OWNER, owner));
     }
 }

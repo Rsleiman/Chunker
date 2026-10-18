@@ -91,8 +91,8 @@ public final class BedrockLivingEntityReader {
         input.getOptionalValue("canPickupItems", Byte.class)
                 .ifPresent(value -> entity.put(ChunkerEntityProperty.CAN_PICK_UP_LOOT, value == 1));
 
-        readAge(input, entity, type);
-        readTaming(input, entity, type);
+        readAge(resolvers, input, entity, type);
+        readTaming(resolvers, input, entity, type);
         readTypeSpecific(resolvers, input, entity, type, groups);
     }
 
@@ -274,7 +274,7 @@ public final class BedrockLivingEntityReader {
         }
     }
 
-    private static void readAge(CompoundTag input, GenericEntity entity, ChunkerEntityType type) {
+    private static void readAge(BedrockResolvers resolvers, CompoundTag input, GenericEntity entity, ChunkerEntityType type) {
         boolean baby = input.getByte("IsBaby", (byte) 0) == 1;
         if (GenericEntityTypes.AGEABLE.contains(type)) {
             entity.put(ChunkerEntityProperty.BABY, baby);
@@ -293,7 +293,7 @@ public final class BedrockLivingEntityReader {
             int inLove = input.getInt("InLove", 0);
             if (inLove > 0) {
                 entity.put(ChunkerEntityProperty.IN_LOVE, inLove);
-                BedrockEntityUUIDs.referenceUUID(input.getLong("LoveCause", -1))
+                BedrockEntityUUIDs.referenceUUID(resolvers.converter(), input.getLong("LoveCause", -1))
                         .ifPresent(uuid -> entity.put(ChunkerEntityProperty.LOVE_CAUSE, uuid));
             }
         } else if (GenericEntityTypes.BABY_FLAG.contains(type)) {
@@ -301,13 +301,13 @@ public final class BedrockLivingEntityReader {
         }
     }
 
-    private static void readTaming(CompoundTag input, GenericEntity entity, ChunkerEntityType type) {
+    private static void readTaming(BedrockResolvers resolvers, CompoundTag input, GenericEntity entity, ChunkerEntityType type) {
         if (!GenericEntityTypes.SITTING_PETS.contains(type) && !GenericEntityTypes.HORSES.contains(type)) return;
 
         boolean tamed = input.getByte("IsTamed", (byte) 0) == 1;
         entity.put(ChunkerEntityProperty.TAMED, tamed);
         if (tamed) {
-            BedrockEntityUUIDs.referenceUUID(input.getLong("OwnerNew", -1))
+            BedrockEntityUUIDs.referenceUUID(resolvers.converter(), input.getLong("OwnerNew", -1))
                     .ifPresent(uuid -> entity.put(ChunkerEntityProperty.OWNER, uuid));
         }
         if (GenericEntityTypes.SITTING_PETS.contains(type)) {

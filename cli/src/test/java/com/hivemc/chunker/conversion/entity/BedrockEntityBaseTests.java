@@ -31,8 +31,8 @@ public class BedrockEntityBaseTests {
         // Values from tools/entity-probe/translate.py: uuid.uuid5(uuid.NAMESPACE_OID, f"bedrock-actor:{uid}")
         assertEquals(UUID.fromString("31a1aa7b-f86d-5ff1-a1db-6dd9b3f44428"), BedrockEntityUUIDs.toUUID(-17179862338L));
         assertEquals(UUID.fromString("5f8f5a16-4c37-5f2a-b3ea-c88c9c585b9a"), BedrockEntityUUIDs.toUUID(-4294967295L));
-        assertTrue(BedrockEntityUUIDs.referenceUUID(-1).isEmpty());
-        assertEquals(BedrockEntityUUIDs.toUUID(-4294967295L), BedrockEntityUUIDs.referenceUUID(-4294967295L).orElseThrow());
+        assertTrue(BedrockEntityUUIDs.referenceUUID(CONVERTER, -1).isEmpty());
+        assertEquals(BedrockEntityUUIDs.toUUID(-4294967295L), BedrockEntityUUIDs.referenceUUID(CONVERTER, -4294967295L).orElseThrow());
     }
 
     @Test

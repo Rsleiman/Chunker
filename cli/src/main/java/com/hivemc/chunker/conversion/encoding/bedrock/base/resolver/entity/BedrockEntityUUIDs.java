@@ -1,5 +1,7 @@
 package com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity;
 
+import com.hivemc.chunker.conversion.encoding.base.Converter;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -14,10 +16,10 @@ import java.util.UUID;
  * between entities (owners, riders, leashes, love causes) still resolve after conversion and the result is the same on
  * every run.
  * <p>
- * Players are referenced the same way: Bedrock worlds don't store a player's XUID, so the owner of a tamed mob gets the
- * derived UUID of the player's UniqueID, which matches no real account. Mapping players to their real Java UUIDs
- * (Floodgate uses {@code new UUID(0, xuid)} for Bedrock accounts) only needs a change to
- * {@link #referenceUUID(long)}, which every player reference goes through.
+ * Players are referenced through {@link #referenceUUID(Converter, long)}. Bedrock worlds don't store a player's XUID,
+ * so a player's real Java UUID (their Java account, or {@code new UUID(0, xuid)} which Floodgate uses for Bedrock
+ * accounts) is taken from {@link Converter#getBedrockPlayerUUIDs()}. Players without an entry get the derived UUID of
+ * their UniqueID, which matches no real account.
  */
 public final class BedrockEntityUUIDs {
     /**
@@ -42,12 +44,14 @@ public final class BedrockEntityUUIDs {
      * Get the UUID of an actor referenced by its UniqueID, which may be a player (owners, leash holders, love causes,
      * projectile owners).
      *
-     * @param uniqueId the UniqueID which is referenced, -1 is used by Bedrock when there is none.
+     * @param converter the converter, holding the Java UUIDs of known players.
+     * @param uniqueId  the UniqueID which is referenced, -1 is used by Bedrock when there is none.
      * @return the UUID to use or empty if nothing is referenced.
      */
-    public static Optional<UUID> referenceUUID(long uniqueId) {
+    public static Optional<UUID> referenceUUID(Converter converter, long uniqueId) {
         if (uniqueId == -1) return Optional.empty();
-        return Optional.of(toUUID(uniqueId));
+        UUID player = converter.getBedrockPlayerUUIDs().get(uniqueId);
+        return Optional.of(player != null ? player : toUUID(uniqueId));
     }
 
     /**

@@ -126,6 +126,13 @@ public class CLI implements Runnable {
     private JsonObjectOrFile biomeMappings;
 
     @CommandLine.Option(
+            names = {"--bedrockPlayerUUIDs"},
+            description = "A JSON file/object mapping Bedrock player UniqueIDs to the Java UUIDs of their accounts, used for the owners of tamed mobs and leash holders.",
+            converter = JsonObjectOrFile.Converter.class
+    )
+    private JsonObjectOrFile bedrockPlayerUUIDs;
+
+    @CommandLine.Option(
             names = {"--keepOriginalNBT", "-k"},
             description = "Whether original NBT should be kept and written to the output world (only works if the output is the same as the input)."
     )
@@ -360,6 +367,21 @@ public class CLI implements Runnable {
                     worldConverter.setCustomIdentifiers(customIdentifiers);
                 } catch (Exception e) {
                     System.err.println("Failed to parse converter settings.");
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // Apply the Java UUIDs of Bedrock players
+            if (bedrockPlayerUUIDs != null) {
+                try {
+                    Map<String, String> rawPlayerUUIDs = GSON.fromJson(bedrockPlayerUUIDs.getJSONObjectString(), BIOME_INPUT_TO_OUTPUT_TYPE);
+                    Map<Long, UUID> playerUUIDs = new Object2ObjectOpenHashMap<>(rawPlayerUUIDs.size());
+                    for (Map.Entry<String, String> entry : rawPlayerUUIDs.entrySet()) {
+                        playerUUIDs.put(Long.parseLong(entry.getKey()), UUID.fromString(entry.getValue()));
+                    }
+                    worldConverter.setBedrockPlayerUUIDs(playerUUIDs);
+                } catch (Exception e) {
+                    System.err.println("Failed to parse Bedrock player UUIDs.");
                     throw new RuntimeException(e);
                 }
             }

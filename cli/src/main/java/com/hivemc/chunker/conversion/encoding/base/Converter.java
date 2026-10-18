@@ -10,7 +10,9 @@ import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry;
 import com.hivemc.chunker.mapping.resolver.MappingsFileResolvers;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * A converter is an interface for converter settings / feeding information back to the user.
@@ -57,6 +59,14 @@ public interface Converter {
      * @return true if it should be processed.
      */
     boolean shouldProcessLootTables();
+
+    /**
+     * Get the Java UUIDs to use for Bedrock players, so references to them (owners of tamed mobs, leash holders) point
+     * at the player's real account.
+     *
+     * @return a map of Bedrock player UniqueID to Java UUID, players without an entry get a derived UUID.
+     */
+    Map<Long, UUID> getBedrockPlayerUUIDs();
 
     /**
      * Whether biomes should be processed.

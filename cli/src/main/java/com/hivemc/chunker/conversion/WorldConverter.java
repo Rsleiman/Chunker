@@ -89,6 +89,7 @@ public class WorldConverter implements Converter {
     private boolean processEntities = true;
     private boolean processBlockEntities = true;
     private boolean processLootTables = true;
+    private Map<Long, UUID> bedrockPlayerUUIDs = Map.of();
     private boolean processBiomes = true;
     private boolean processHeightMap = true;
     private boolean processLighting = true;
@@ -219,6 +220,15 @@ public class WorldConverter implements Converter {
     }
 
     /**
+     * Set the Java UUIDs to use for Bedrock players.
+     *
+     * @param bedrockPlayerUUIDs a map of Bedrock player UniqueID to Java UUID.
+     */
+    public void setBedrockPlayerUUIDs(Map<Long, UUID> bedrockPlayerUUIDs) {
+        this.bedrockPlayerUUIDs = Map.copyOf(bedrockPlayerUUIDs);
+    }
+
+    /**
      * Set whether biomes should be converted.
      *
      * @param processBiomes true if they should be converted.
@@ -309,6 +319,11 @@ public class WorldConverter implements Converter {
     @Override
     public boolean shouldProcessLootTables() {
         return processLootTables;
+    }
+
+    @Override
+    public Map<Long, UUID> getBedrockPlayerUUIDs() {
+        return bedrockPlayerUUIDs;
     }
 
     @Override
