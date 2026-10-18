@@ -99,6 +99,22 @@ public class ChunkerEntityProperty<V> extends Property<Entity, V> {
             new TypeToken<>() {
             }
     );
+    /**
+     * The UUIDs of the entities riding this entity, while a reader resolves them into {@link #PASSENGERS} (Bedrock
+     * stores riders as separate actors, which the vehicle links to).
+     */
+    public static final ChunkerEntityProperty<List<UUID>> PASSENGER_IDS = new ChunkerEntityProperty<>(
+            "passenger_ids",
+            new TypeToken<>() {
+            }
+    );
+    /**
+     * The entity holding this entity's leash.
+     */
+    public static final ChunkerEntityProperty<UUID> LEASH_HOLDER = new ChunkerEntityProperty<>(
+            "leash_holder",
+            UUID.class
+    );
 
     // Living entities
     /**
