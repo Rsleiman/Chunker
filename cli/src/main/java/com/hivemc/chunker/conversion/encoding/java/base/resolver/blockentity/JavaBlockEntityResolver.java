@@ -77,7 +77,10 @@ public class JavaBlockEntityResolver extends BlockEntityResolver<JavaResolvers, 
             register(new EmptyBlockEntityHandler<>("minecraft:smoker", SmokerBlockEntity.class, SmokerBlockEntity::new));
             register(new EmptyBlockEntityHandler<>("minecraft:barrel", BarrelBlockEntity.class, BarrelBlockEntity::new));
         }
-        if (version.isGreaterThanOrEqual(1, 15, 0)) {
+        if (version.isGreaterThanOrEqual(1, 21, 5)) {
+            // The bees inside are written from 1.21.5, where entities can be written
+            register(new JavaBeehiveBlockEntityHandler());
+        } else if (version.isGreaterThanOrEqual(1, 15, 0)) {
             register(new EmptyBlockEntityHandler<>("minecraft:beehive", BeehiveBlockEntity.class, BeehiveBlockEntity::new));
         }
         if (version.isGreaterThanOrEqual(1, 17, 0)) {

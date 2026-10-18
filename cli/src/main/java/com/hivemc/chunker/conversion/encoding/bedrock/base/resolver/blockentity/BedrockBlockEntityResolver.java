@@ -88,7 +88,7 @@ public class BedrockBlockEntityResolver extends BlockEntityResolver<BedrockResol
         // R16
         if (version.isGreaterThanOrEqual(1, 16, 0)) {
             register(new BedrockLodestoneBlockEntityHandler());
-            register(new EmptyBlockEntityHandler<>("Beehive", BeehiveBlockEntity.class, BeehiveBlockEntity::new));
+            register(new BedrockBeehiveBlockEntityHandler());
         }
 
         // R17
