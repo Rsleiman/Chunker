@@ -18,12 +18,15 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.potion.
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.ChunkerTrimMaterial;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.ChunkerTrimPattern;
 import com.hivemc.chunker.conversion.intermediate.column.entity.PaintingEntity;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.mapping.identifier.Identifier;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.resolver.Resolver;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -285,6 +288,14 @@ public interface BedrockResolvers {
      * @return the lodestone data or empty if the index wasn't found.
      */
     Optional<ChunkerLodestoneData> getLodestoneData(int index);
+
+    /**
+     * Get the points of interest a villager's village recorded for it (bed, bell, workstation).
+     *
+     * @param villagerId the UniqueID of the villager.
+     * @return the memories of the villager, empty if none were recorded or the world wasn't read.
+     */
+    Map<ChunkerVillagerMemory, ChunkerGlobalPosition> getVillagerMemories(long villagerId);
 
     /**
      * Get the converter instance.

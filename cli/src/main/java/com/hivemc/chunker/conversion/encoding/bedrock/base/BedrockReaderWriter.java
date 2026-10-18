@@ -19,7 +19,11 @@ import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.itemstack.*;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.itemstack.legacy.BedrockLegacyItemStackResolver;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.writer.pretransform.BedrockWriterPreTransformManager;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerLodestoneData;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Map;
 
 /**
  * A Bedrock Level Reader / Writer, used to share resolvers.
@@ -48,6 +52,17 @@ public interface BedrockReaderWriter extends LevelReaderWriter {
     ChunkerLodestoneData getLodestoneData(int index);
 
     /**
+     * Get the points of interest a villager's village recorded for it.
+     *
+     * @param villagerId the UniqueID of the villager.
+     * @return the memories or null if none are known.
+     */
+    @Nullable
+    default Map<ChunkerVillagerMemory, ChunkerGlobalPosition> getVillagerMemories(long villagerId) {
+        return null;
+    }
+
+    /**
      * Build the resolvers which should be used for this version.
      *
      * @param converter the instance of the converter.
@@ -73,6 +88,7 @@ public interface BedrockReaderWriter extends LevelReaderWriter {
                 .blockEntityResolverConstructor((resolvers) -> new BedrockBlockEntityResolver(version, resolvers))
                 .entityResolverConstructor((resolvers) -> new BedrockEntityResolver(version, resolvers))
                 .preTransformManager(isReader() ? new BedrockReaderPreTransformManager(version) : new BedrockWriterPreTransformManager(version))
-                .lodestoneData(this::getLodestoneData, this::getOrCreateLodestoneData);
+                .lodestoneData(this::getLodestoneData, this::getOrCreateLodestoneData)
+                .villagerMemories(this::getVillagerMemories);
     }
 }

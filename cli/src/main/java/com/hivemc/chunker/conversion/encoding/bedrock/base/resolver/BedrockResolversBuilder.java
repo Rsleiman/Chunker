@@ -19,15 +19,20 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.potion.
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.ChunkerTrimMaterial;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.ChunkerTrimPattern;
 import com.hivemc.chunker.conversion.intermediate.column.entity.PaintingEntity;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.mapping.identifier.Identifier;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.resolver.Resolver;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.LongFunction;
 import java.util.function.ToIntFunction;
 
 /**
@@ -58,6 +63,7 @@ public class BedrockResolversBuilder {
     private Function<BedrockResolvers, EntityResolver<BedrockResolvers, CompoundTag>> entityResolverConstructor;
     private IntFunction<ChunkerLodestoneData> lodestoneDataGetter;
     private ToIntFunction<ChunkerLodestoneData> lodestoneDataSetter;
+    private LongFunction<Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> villagerMemoriesGetter;
     private PreTransformManager preTransformManager;
 
     /**
@@ -354,6 +360,15 @@ public class BedrockResolversBuilder {
             }
 
             @Override
+            public Map<ChunkerVillagerMemory, ChunkerGlobalPosition> getVillagerMemories(long villagerId) {
+                if (villagerMemoriesGetter != null) {
+                    Map<ChunkerVillagerMemory, ChunkerGlobalPosition> memories = villagerMemoriesGetter.apply(villagerId);
+                    if (memories != null) return memories;
+                }
+                return Collections.emptyMap();
+            }
+
+            @Override
             public Converter converter() {
                 return converter;
             }
@@ -478,6 +493,11 @@ public class BedrockResolversBuilder {
     public BedrockResolversBuilder lodestoneData(IntFunction<ChunkerLodestoneData> lodestoneDataGetter, ToIntFunction<ChunkerLodestoneData> lodestoneDataSetter) {
         this.lodestoneDataGetter = lodestoneDataGetter;
         this.lodestoneDataSetter = lodestoneDataSetter;
+        return this;
+    }
+
+    public BedrockResolversBuilder villagerMemories(LongFunction<Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> villagerMemoriesGetter) {
+        this.villagerMemoriesGetter = villagerMemoriesGetter;
         return this;
     }
 }

@@ -6,7 +6,12 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.Chunker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerBlockPosition;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerEquipmentSlot;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerMobEffect;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerTradeOffer;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerProfession;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerType;
 import com.hivemc.chunker.resolver.property.Property;
 
 import java.util.List;
@@ -336,6 +341,50 @@ public class ChunkerEntityProperty<V> extends Property<Entity, V> {
     public static final ChunkerEntityProperty<Integer> DESPAWN_DELAY = new ChunkerEntityProperty<>(
             "despawn_delay",
             Integer.class
+    );
+    /**
+     * The profession of a villager or zombie villager.
+     */
+    public static final ChunkerEntityProperty<ChunkerVillagerProfession> VILLAGER_PROFESSION = new ChunkerEntityProperty<>(
+            "villager_profession",
+            ChunkerVillagerProfession.class
+    );
+    /**
+     * The biome type of a villager or zombie villager.
+     */
+    public static final ChunkerEntityProperty<ChunkerVillagerType> VILLAGER_TYPE = new ChunkerEntityProperty<>(
+            "villager_type",
+            ChunkerVillagerType.class
+    );
+    /**
+     * The trading level of a villager (1 novice to 5 master).
+     */
+    public static final ChunkerEntityProperty<Integer> VILLAGER_LEVEL = new ChunkerEntityProperty<>(
+            "villager_level",
+            Integer.class
+    );
+    /**
+     * The trading experience of a villager.
+     */
+    public static final ChunkerEntityProperty<Integer> VILLAGER_XP = new ChunkerEntityProperty<>(
+            "villager_xp",
+            Integer.class
+    );
+    /**
+     * The unlocked trades of a villager or wandering trader.
+     */
+    public static final ChunkerEntityProperty<List<ChunkerTradeOffer>> TRADE_OFFERS = new ChunkerEntityProperty<>(
+            "trade_offers",
+            new TypeToken<>() {
+            }
+    );
+    /**
+     * The points of interest a villager remembers (bed, bell, workstation).
+     */
+    public static final ChunkerEntityProperty<Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> VILLAGER_MEMORIES = new ChunkerEntityProperty<>(
+            "villager_memories",
+            new TypeToken<>() {
+            }
     );
     /**
      * The size of a slime, magma cube or sulfur cube (1 is the smallest).

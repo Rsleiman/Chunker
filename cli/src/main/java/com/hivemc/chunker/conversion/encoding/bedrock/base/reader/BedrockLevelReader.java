@@ -7,6 +7,7 @@ import com.hivemc.chunker.conversion.encoding.bedrock.base.BedrockReaderWriter;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
 import com.hivemc.chunker.conversion.encoding.bedrock.util.BedrockChunkCoordinateSet;
 import com.hivemc.chunker.conversion.encoding.bedrock.util.BedrockStructureParser;
+import com.hivemc.chunker.conversion.encoding.bedrock.util.BedrockVillageParser;
 import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType;
 import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey;
 import com.hivemc.chunker.conversion.handlers.LevelConversionHandler;
@@ -18,6 +19,8 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.Chunker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerLodestoneData;
 import com.hivemc.chunker.conversion.intermediate.level.*;
 import com.hivemc.chunker.conversion.intermediate.level.map.ChunkerMap;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry;
 import com.hivemc.chunker.nbt.tags.Tag;
@@ -41,7 +44,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A reader for Bedrock levels.
@@ -62,6 +67,7 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
     protected final Version inputVersion;
     protected final Converter converter;
     protected final BedrockResolvers resolvers;
+    protected final Map<Long, Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> villagerMemories = new ConcurrentHashMap<>();
     protected DB database;
 
     /**
@@ -207,9 +213,10 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
         ProgressiveTask<Void> parsePortals = Task.asyncConsume("Parsing Portals", TaskWeight.NORMAL, this::parsePortals, output);
         ProgressiveTask<Void> parseStructures = Task.asyncConsume("Parsing Structures", TaskWeight.NORMAL, this::parseStructures, output);
         ProgressiveTask<Void> parseCustomBiomes = Task.asyncConsume("Parsing Biome List", TaskWeight.NORMAL, this::parseBiomeList, output);
+        ProgressiveTask<Void> parseVillages = Task.asyncConsume("Parsing Villages", TaskWeight.NORMAL, this::parseVillages, output);
 
-        // When those tasks are done we can convert the level
-        return Task.join(parseLevelSettings, parseLocalPlayer, parseMaps, parsePortals, parseStructures, parseCustomBiomes)
+        // When those tasks are done we can convert the level (entities are read after this)
+        return Task.join(parseLevelSettings, parseLocalPlayer, parseMaps, parsePortals, parseStructures, parseCustomBiomes, parseVillages)
                 .thenUnwrap("Converting Level", TaskWeight.LOW, levelConversionHandler::convertLevel, output);
     }
 
@@ -669,6 +676,39 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
         } catch (Exception e) {
             converter.logNonFatalException(e);
         }
+    }
+
+    /**
+     * Parse the points of interest which villages recorded for their villagers, these become villager memories when
+     * the villagers are read.
+     *
+     * @param output the level (unused, the memories are kept by the reader).
+     */
+    protected void parseVillages(ChunkerLevel output) {
+        if (!converter.shouldProcessEntities()) return;
+        byte[] prefix = BedrockVillageParser.KEY_PREFIX.getBytes(StandardCharsets.US_ASCII);
+        try (DBIterator iterator = database.iterator(new ReadOptions().fillCache(false))) {
+            iterator.seek(prefix);
+            while (iterator.hasNext()) {
+                Map.Entry<byte[], byte[]> entry = iterator.next();
+                if (!LevelDBKey.startsWith(entry.getKey(), prefix)) break;
+                String key = new String(entry.getKey(), StandardCharsets.US_ASCII);
+                Dimension dimension = BedrockVillageParser.getDimension(key);
+                if (dimension == null) continue;
+                try {
+                    BedrockVillageParser.parsePOI(entry.getValue(), dimension, villagerMemories);
+                } catch (Exception e) {
+                    converter.logNonFatalException(new Exception("Failed to parse village record " + key, e));
+                }
+            }
+        } catch (Exception e) {
+            converter.logNonFatalException(e);
+        }
+    }
+
+    @Override
+    public @Nullable Map<ChunkerVillagerMemory, ChunkerGlobalPosition> getVillagerMemories(long villagerId) {
+        return villagerMemories.get(villagerId);
     }
 
     /**

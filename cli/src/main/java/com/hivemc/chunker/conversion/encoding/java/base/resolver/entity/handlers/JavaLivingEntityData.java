@@ -199,6 +199,15 @@ public final class JavaLivingEntityData {
         if (size != null) {
             output.put("Size", size - 1); // Java stores the size minus one
         }
+
+        if (isVillager(type)) {
+            JavaVillagerData.write(resolvers, output, entity);
+        }
+    }
+
+    private static boolean isVillager(ChunkerEntityType type) {
+        return type == ChunkerVanillaEntityType.VILLAGER || type == ChunkerVanillaEntityType.ZOMBIE_VILLAGER
+                || type == ChunkerVanillaEntityType.WANDERING_TRADER;
     }
 
     /**
@@ -352,6 +361,10 @@ public final class JavaLivingEntityData {
         input.getOptionalValue("DespawnDelay", Integer.class)
                 .ifPresent(value -> entity.put(ChunkerEntityProperty.DESPAWN_DELAY, value));
         input.getOptionalValue("Size", Integer.class).ifPresent(value -> entity.put(ChunkerEntityProperty.SIZE, value + 1));
+
+        if (isVillager(type)) {
+            JavaVillagerData.read(resolvers, input, entity);
+        }
     }
 
     /**

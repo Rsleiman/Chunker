@@ -402,6 +402,12 @@ public final class BedrockLivingEntityReader {
             }
         }
 
+        // Villagers and wandering traders
+        if (type == ChunkerVanillaEntityType.VILLAGER || type == ChunkerVanillaEntityType.ZOMBIE_VILLAGER
+                || type == ChunkerVanillaEntityType.WANDERING_TRADER) {
+            BedrockVillagerReader.read(resolvers, input, entity, groups);
+        }
+
         // Bedrock doesn't save a despawn timer which could be decoded, so it restarts (as for a new trader)
         if (type == ChunkerVanillaEntityType.WANDERING_TRADER || type == ChunkerVanillaEntityType.TRADER_LLAMA) {
             entity.put(ChunkerEntityProperty.DESPAWN_DELAY, 48000);
