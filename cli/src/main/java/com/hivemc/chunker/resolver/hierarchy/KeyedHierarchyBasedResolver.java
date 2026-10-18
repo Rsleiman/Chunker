@@ -88,6 +88,17 @@ public abstract class KeyedHierarchyBasedResolver<R, K, D, T> implements Resolve
     protected abstract D constructDataType(K key);
 
     /**
+     * Get the key used to construct the data type when writing an input.
+     *
+     * @param typeHandler the handler which will write the input.
+     * @param input       the input being written.
+     * @return the key to construct the data type with, by default the key of the handler.
+     */
+    protected K getOutputKey(TypeHandler<R, K, D, ? extends T> typeHandler, T input) {
+        return typeHandler.getKey();
+    }
+
+    /**
      * Register the types which are handled by this resolver, they should all be part of the class hierarchy for the type T.
      * Note: This is called on class initialization.
      *
@@ -221,7 +232,7 @@ public abstract class KeyedHierarchyBasedResolver<R, K, D, T> implements Resolve
         if (!lastTypeHandler.getHandledClass().isInstance(input)) return Optional.empty();
 
         // Construct the output
-        D output = constructDataType(lastTypeHandler.getKey());
+        D output = constructDataType(getOutputKey(lastTypeHandler, input));
         if (output == null) return Optional.empty();
 
         // Loop through each handler in the hierarchy from base -> final

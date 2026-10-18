@@ -6,9 +6,11 @@ import com.hivemc.chunker.conversion.encoding.base.resolver.entity.EntityResolve
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.JavaResolvers;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.entity.handlers.JavaCushionEntityHandler;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.entity.handlers.JavaEntityHandler;
+import com.hivemc.chunker.conversion.encoding.java.base.resolver.entity.handlers.JavaGenericEntityHandler;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.entity.handlers.JavaHangingEntityHandler;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.entity.handlers.JavaItemFrameEntityHandler;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.entity.handlers.JavaPaintingEntityHandler;
+import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntityTypes;
 import com.hivemc.chunker.conversion.intermediate.column.entity.GlowItemFrameEntity;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVanillaEntityType;
@@ -43,6 +45,11 @@ public class JavaEntityResolver extends EntityResolver<JavaResolvers, CompoundTa
 
         if (version.isGreaterThanOrEqual(26, 3, 0)) {
             register(new JavaCushionEntityHandler());
+        }
+
+        // Mobs, dropped items, experience orbs, vehicles and projectiles (the formats from 1.21.5 onwards)
+        if (version.isGreaterThanOrEqual(1, 21, 5)) {
+            registerTypes(new JavaGenericEntityHandler(), GenericEntityTypes.ALL);
         }
     }
 

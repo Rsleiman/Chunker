@@ -2,14 +2,16 @@ package com.hivemc.chunker.conversion.intermediate.column.entity;
 
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
+import com.hivemc.chunker.resolver.property.PropertyHolder;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
 /**
  * The base entity type with shared information present in all entities.
+ * Data which isn't present on every entity is stored as a {@link ChunkerEntityProperty}.
  */
-public abstract class Entity {
+public abstract class Entity extends PropertyHolder<Entity> {
     // Position
     private double positionX;
     private double positionY;
@@ -200,12 +202,13 @@ public abstract class Entity {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Entity entity)) return false;
+        if (!super.equals(o)) return false;
         return Double.compare(getPositionX(), entity.getPositionX()) == 0 && Double.compare(getPositionY(), entity.getPositionY()) == 0 && Double.compare(getPositionZ(), entity.getPositionZ()) == 0 && Double.compare(getMotionX(), entity.getMotionX()) == 0 && Double.compare(getMotionY(), entity.getMotionY()) == 0 && Double.compare(getMotionZ(), entity.getMotionZ()) == 0 && Float.compare(getYaw(), entity.getYaw()) == 0 && Float.compare(getPitch(), entity.getPitch()) == 0;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getPositionX(), getPositionY(), getPositionZ(), getMotionX(), getMotionY(), getMotionZ(), getYaw(), getPitch());
+        return Objects.hash(super.hashCode(), getPositionX(), getPositionY(), getPositionZ(), getMotionX(), getMotionY(), getMotionZ(), getYaw(), getPitch());
     }
 
     @Override
@@ -219,6 +222,7 @@ public abstract class Entity {
                 ", motionZ=" + getMotionZ() +
                 ", yaw=" + getYaw() +
                 ", pitch=" + getPitch() +
+                ", properties=" + getProperties() +
                 '}';
     }
 }

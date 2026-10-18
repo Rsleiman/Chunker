@@ -6,9 +6,11 @@ import com.hivemc.chunker.conversion.encoding.base.resolver.entity.EntityResolve
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.handlers.BedrockCushionEntityHandler;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.handlers.BedrockEntityHandler;
+import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.handlers.BedrockGenericEntityHandler;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.handlers.BedrockHangingEntityHandler;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.handlers.BedrockItemFrameEntityHandler;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.handlers.BedrockPaintingEntityHandler;
+import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntityTypes;
 import com.hivemc.chunker.conversion.intermediate.column.entity.GlowItemFrameEntity;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVanillaEntityType;
@@ -46,6 +48,9 @@ public class BedrockEntityResolver extends EntityResolver<BedrockResolvers, Comp
         if (version.isGreaterThanOrEqual(1, 26, 40)) {
             register(new BedrockCushionEntityHandler());
         }
+
+        // Mobs, dropped items, experience orbs, vehicles and projectiles
+        registerTypes(new BedrockGenericEntityHandler(), GenericEntityTypes.ALL);
     }
 
     @Override

@@ -72,6 +72,26 @@ public abstract class EntityResolver<R, D> extends KeyedHierarchyBasedResolver<R
         interfaceHandlerCache.clear();
     }
 
+    /**
+     * Register a type handler which handles several entity types with the same class (e.g. GenericEntity).
+     * Types which already have a handler keep it, so specific handlers can be registered before or after this.
+     *
+     * @param typeHandler the type handler to register.
+     * @param types       the entity types which the handler reads.
+     */
+    protected void registerTypes(TypeHandler<R, ChunkerEntityType, D, ? extends Entity> typeHandler, Collection<? extends ChunkerEntityType> types) {
+        register(typeHandler);
+        for (ChunkerEntityType type : types) {
+            keyLookup.putIfAbsent(type, typeHandler);
+        }
+    }
+
+    @Override
+    protected ChunkerEntityType getOutputKey(TypeHandler<R, ChunkerEntityType, D, ? extends Entity> typeHandler, Entity input) {
+        // Handlers for several types write the type of the entity
+        return typeHandler.getKey() != null ? typeHandler.getKey() : input.getEntityType();
+    }
+
     private <T> Collection<Object> generateInterfaceHandlers(Class<T> interfaceClass, TypeHandler<R, ChunkerEntityType, D, ? extends Entity> lastHandler) {
         Collection<TypeHandler<R, ChunkerEntityType, D, ? extends Entity>> handlers = getTypeHandlers(lastHandler);
         if (handlers.isEmpty()) return Collections.emptyList(); // No handlers
