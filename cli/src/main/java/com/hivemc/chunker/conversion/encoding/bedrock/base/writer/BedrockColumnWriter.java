@@ -62,6 +62,9 @@ public class BedrockColumnWriter implements ColumnWriter {
 
     @Override
     public void writeColumn(ChunkerColumn chunkerColumn) throws Exception {
+        // A column without terrain isn't written
+        if (chunkerColumn.isEntitiesOnly()) return;
+
         // Run any preprocessing
         preProcessColumn(chunkerColumn);
 

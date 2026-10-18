@@ -52,6 +52,12 @@ public class ColumnPreTransformConversionHandler implements ColumnConversionHand
 
     @Override
     public void convertColumn(ChunkerColumn column) {
+        // A column without terrain has nothing to transform and mustn't be treated as a neighbour
+        if (column.isEntitiesOnly()) {
+            delegate.convertColumn(column);
+            return;
+        }
+
         synchronized (this) {
             ChunkCoordPair position = column.getPosition();
             Preconditions.checkArgument(processedColumns.add(position.toLong()), "Duplicate chunk processed, unable to solve.");

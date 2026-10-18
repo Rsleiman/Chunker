@@ -37,6 +37,7 @@ public class ChunkerColumn {
     @Nullable
     private HeightMap heightMap;
     private boolean lightPopulated;
+    private boolean entitiesOnly;
     private Consumer<Map<Edge, ChunkerColumn>> preTransformHandler;
 
     /**
@@ -134,6 +135,25 @@ public class ChunkerColumn {
      */
     public void setLightPopulated(boolean lightPopulated) {
         this.lightPopulated = lightPopulated;
+    }
+
+    /**
+     * Whether the column only carries entities. This is the case for a column the input world has entities for but
+     * no terrain, so writers must not write any terrain for it and it takes no part in pre-transforms.
+     *
+     * @return true if only the entities of this column should be written.
+     */
+    public boolean isEntitiesOnly() {
+        return entitiesOnly;
+    }
+
+    /**
+     * Set whether the column only carries entities.
+     *
+     * @param entitiesOnly true if only the entities of this column should be written.
+     */
+    public void setEntitiesOnly(boolean entitiesOnly) {
+        this.entitiesOnly = entitiesOnly;
     }
 
     /**

@@ -38,6 +38,9 @@ public class PreviewColumnWriter implements ColumnWriter {
 
     @Override
     public void writeColumn(ChunkerColumn chunkerColumn) {
+        // A column without terrain has nothing to show
+        if (chunkerColumn.isEntitiesOnly()) return;
+
         int[] argb = new int[256];
         boolean present = false;
 

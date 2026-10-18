@@ -60,6 +60,12 @@ public class JavaColumnWriter implements ColumnWriter {
 
     @Override
     public void writeColumn(ChunkerColumn chunkerColumn) throws Exception {
+        // A column without terrain only has its entities written
+        if (chunkerColumn.isEntitiesOnly()) {
+            writeEntitiesOnly(chunkerColumn);
+            return;
+        }
+
         CompoundTag root = new CompoundTag(10);
 
         // Write base details
@@ -100,6 +106,19 @@ public class JavaColumnWriter implements ColumnWriter {
     @Override
     public @Nullable PreTransformManager getPreTransformManager() {
         return resolvers.preTransformManager();
+    }
+
+    /**
+     * Write the entities of a column which has no terrain, without writing any terrain.
+     *
+     * @param chunkerColumn the column to write.
+     * @throws Exception if it failed to write the entities.
+     */
+    protected void writeEntitiesOnly(ChunkerColumn chunkerColumn) throws Exception {
+        TagWithName<?> entities = writeEntities(chunkerColumn);
+        if (entities.tag() instanceof ListTag<?, ?> entitiesList && entitiesList.size() > 0) {
+            parent.writeEntityData(dimension, chunkerColumn.getPosition(), entitiesList);
+        }
     }
 
     /**

@@ -22,22 +22,27 @@ public class WorldWriter extends com.hivemc.chunker.conversion.encoding.java.v1_
         CompoundTag root = chunkData.getCompound("Level", chunkData);
         Tag<?> entities = root.remove("Entities");
         if (entities instanceof ListTag<?, ?> entitiesList && entitiesList.size() > 0) {
-            // Write the entities to a different region file
-            CompoundTag entitiesData = new CompoundTag(3);
-            entitiesData.put("Entities", entities);
-            entitiesData.put("DataVersion", resolvers.dataVersion().getDataVersion());
-            entitiesData.put("Position", new int[]{chunkCoordPair.chunkX(), chunkCoordPair.chunkZ()});
-
-            File entityDirectory = resolvers.javaLevelDirectoryResolver().getDimensionEntitiesDirectory(dimension);
-            if (!entityDirectory.exists()) {
-                entityDirectory.mkdirs();
-            }
-            File entityRegionFile = new File(entityDirectory, "r." + chunkCoordPair.regionX() + "." + chunkCoordPair.regionZ() + ".mca");
-            writeMCAData(entityRegionFile, chunkCoordPair, entitiesData);
+            writeEntityData(dimension, chunkCoordPair, entitiesList);
         }
 
         // Write main region file
         super.writeMCAData(dimension, chunkCoordPair, chunkData);
+    }
+
+    @Override
+    public void writeEntityData(Dimension dimension, ChunkCoordPair chunkCoordPair, ListTag<?, ?> entities) throws Exception {
+        // Write the entities to a different region file
+        CompoundTag entitiesData = new CompoundTag(3);
+        entitiesData.put("Entities", entities);
+        entitiesData.put("DataVersion", resolvers.dataVersion().getDataVersion());
+        entitiesData.put("Position", new int[]{chunkCoordPair.chunkX(), chunkCoordPair.chunkZ()});
+
+        File entityDirectory = resolvers.javaLevelDirectoryResolver().getDimensionEntitiesDirectory(dimension);
+        if (!entityDirectory.exists()) {
+            entityDirectory.mkdirs();
+        }
+        File entityRegionFile = new File(entityDirectory, "r." + chunkCoordPair.regionX() + "." + chunkCoordPair.regionZ() + ".mca");
+        writeMCAData(entityRegionFile, chunkCoordPair, entitiesData);
     }
 
     @Override

@@ -33,7 +33,7 @@ public class ColumnPreTransformWriterConversionHandler implements ColumnConversi
     public void convertColumn(ChunkerColumn column) {
         // Call pre-transform solver
         PreTransformManager preTransformManager = preTransformManagerGetter.get();
-        if (preTransformManager != null) {
+        if (preTransformManager != null && !column.isEntitiesOnly()) {
             preTransformManager.solve(column, preTransformAllowed);
         }
 

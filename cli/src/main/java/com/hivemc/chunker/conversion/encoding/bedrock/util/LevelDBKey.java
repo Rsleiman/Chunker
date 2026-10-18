@@ -51,6 +51,16 @@ public class LevelDBKey {
     }
 
     /**
+     * Check whether a database key is the list of entities of a column (digp + X + Z, with an optional dimension).
+     *
+     * @param key the database key.
+     * @return true if the key is a column's entity list.
+     */
+    public static boolean isEntityListKey(byte[] key) {
+        return (key.length == 12 || key.length == 16) && LevelDBKey.startsWith(key, LevelDBKey.DIGP_PREFIX);
+    }
+
+    /**
      * Read a signed little-endian integer without allocating a buffer.
      *
      * @param input the bytes containing the integer.

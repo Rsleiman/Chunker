@@ -87,6 +87,20 @@ public class BedrockColumnReader implements ColumnReader {
     }
 
     /**
+     * Read a column which has entities but no terrain. Only its entities are read, and the column is marked so that
+     * writers don't write any terrain for it.
+     *
+     * @param columnConversionHandler the handler to submit the column to.
+     */
+    public void readEntitiesOnlyColumn(ColumnConversionHandler columnConversionHandler) {
+        ChunkerColumn column = new ChunkerColumn(columnCoords);
+        column.setEntitiesOnly(true);
+        Task.asyncConsume("Reading Entities", TaskWeight.HIGH, this::readEntities, column)
+                .then("Post-processing column", TaskWeight.HIGH, this::postProcess, column)
+                .thenConsume("Submitting column", TaskWeight.LOW, columnConversionHandler::convertColumn);
+    }
+
+    /**
      * Read the biomes and the height map.
      *
      * @param column the column being read.
@@ -363,7 +377,9 @@ public class BedrockColumnReader implements ColumnReader {
 
         // Calculate any pre-transforms
         // Note: This will solve any connections which are already possible to keep as much async as possible
-        resolvers.preTransformManager().solve(column, converter.shouldProcessColumnPreTransform());
+        if (!column.isEntitiesOnly()) {
+            resolvers.preTransformManager().solve(column, converter.shouldProcessColumnPreTransform());
+        }
 
         return column;
     }

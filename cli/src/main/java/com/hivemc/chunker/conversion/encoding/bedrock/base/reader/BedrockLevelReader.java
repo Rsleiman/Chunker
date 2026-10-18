@@ -36,6 +36,7 @@ import it.unimi.dsi.fastutil.bytes.Byte2ObjectAVLTreeMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.iq80.leveldb.*;
 import org.iq80.leveldb.impl.Iq80DBFactory;
 import org.iq80.leveldb.table.BloomFilterPolicy;
@@ -68,6 +69,7 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
     protected final Converter converter;
     protected final BedrockResolvers resolvers;
     protected final Map<Long, Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> villagerMemories = new ConcurrentHashMap<>();
+    protected final Map<Dimension, Set<ChunkCoordPair>> entitiesOnlyColumns = new ConcurrentHashMap<>();
     protected DB database;
 
     /**
@@ -138,12 +140,23 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
         Task<Map<Dimension, Map<RegionCoordPair, Set<ChunkCoordPair>>>> usedRegions = Task.async("Collecting Used Regions", TaskWeight.MEDIUM, () -> {
             // Create a lookup for each dimension and region present
             Map<Dimension, Map<RegionCoordPair, Set<ChunkCoordPair>>> dimensionLookup = new HashMap<>();
+            // Columns with a list of entities (digp), which may have no terrain
+            Map<Dimension, Set<ChunkCoordPair>> entityColumns = new HashMap<>();
+            boolean collectEntityColumns = converter.shouldProcessEntities();
             // Scan the database for valid chunks
             DimensionRegistry dimensionRegistry = converter.getDimensionRegistry();
             try (DBIterator iterator = database.iterator(new ReadOptions().fillCache(false))) {
                 while (iterator.hasNext()) {
                     Map.Entry<byte[], byte[]> entry = iterator.next();
                     byte[] key = entry.getKey();
+                    if (collectEntityColumns && LevelDBKey.isEntityListKey(key) && entry.getValue().length > 0) {
+                        Dimension dimension = key.length == 16 ? dimensionRegistry.fromBedrock(LevelDBKey.readLittleEndianInt(key, 12), null) : Dimension.OVERWORLD;
+                        if (dimension != null) {
+                            entityColumns.computeIfAbsent(dimension, (ignored) -> new ObjectOpenHashSet<>())
+                                    .add(new ChunkCoordPair(LevelDBKey.readLittleEndianInt(key, 4), LevelDBKey.readLittleEndianInt(key, 8)));
+                        }
+                        continue;
+                    }
                     if (!LevelDBKey.isColumnKey(key)) continue;
 
                     int x = LevelDBKey.readLittleEndianInt(key, 0);
@@ -171,6 +184,22 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
                 }
             }
 
+            // Columns with entities but no terrain are read for their entities only
+            for (Map.Entry<Dimension, Set<ChunkCoordPair>> entry : entityColumns.entrySet()) {
+                Map<RegionCoordPair, Set<ChunkCoordPair>> regionLookup = dimensionLookup.computeIfAbsent(entry.getKey(), (ignored) -> new Object2ObjectOpenHashMap<>());
+                Set<ChunkCoordPair> entitiesOnly = new ObjectOpenHashSet<>();
+                for (ChunkCoordPair position : entry.getValue()) {
+                    Set<ChunkCoordPair> columns = regionLookup.get(position.getRegion());
+                    if (columns != null && columns.contains(position)) continue;
+
+                    regionLookup.computeIfAbsent(position.getRegion(), BedrockChunkCoordinateSet::new).add(position);
+                    entitiesOnly.add(position);
+                }
+                if (!entitiesOnly.isEmpty()) {
+                    entitiesOnlyColumns.put(entry.getKey(), entitiesOnly);
+                }
+            }
+
             return dimensionLookup;
         });
 
@@ -185,6 +214,7 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
                     // Create a world reader if it should be processed
                     if (converter.shouldProcessDimension(entry.getKey())) {
                         BedrockWorldReader reader = createWorldReader(entry.getValue(), entry.getKey());
+                        reader.setEntitiesOnlyColumns(entitiesOnlyColumns.getOrDefault(entry.getKey(), Collections.emptySet()));
 
                         // Read the world
                         worlds.add(Task.asyncConsume("Reading World", TaskWeight.HIGHER, reader::readWorld, worldConversionHandler));

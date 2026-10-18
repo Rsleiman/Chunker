@@ -13,6 +13,7 @@ import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.nbt.io.Writer;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
+import com.hivemc.chunker.nbt.tags.collection.ListTag;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import org.jetbrains.annotations.Nullable;
@@ -123,6 +124,19 @@ public class JavaWorldWriter implements WorldWriter {
         }
         File regionFile = new File(directory, "r." + chunkCoordPair.regionX() + "." + chunkCoordPair.regionZ() + ".mca");
         writeMCAData(regionFile, chunkCoordPair, chunkData);
+    }
+
+    /**
+     * Write the entities of a column which has no terrain. Before 1.17 entities are stored inside the terrain chunk,
+     * so they can't be written on their own and are dropped.
+     *
+     * @param dimension      the dimension to write data for.
+     * @param chunkCoordPair the chunk being written.
+     * @param entities       the entities to write.
+     * @throws Exception if it failed to write the data.
+     */
+    public void writeEntityData(Dimension dimension, ChunkCoordPair chunkCoordPair, ListTag<?, ?> entities) throws Exception {
+        // Entities are stored in the terrain chunk before 1.17
     }
 
     /**

@@ -16,6 +16,7 @@ import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.iq80.leveldb.DB;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -36,6 +37,7 @@ public class BedrockWorldReader implements WorldReader {
     protected final Dimension dimension;
     protected final DB database;
     private final int maxInFlightRegions;
+    protected Set<ChunkCoordPair> entitiesOnlyColumns = Collections.emptySet();
 
     /**
      * Create a new Bedrock world reader.
@@ -65,6 +67,15 @@ public class BedrockWorldReader implements WorldReader {
         this.presentRegions = presentRegions;
         this.dimension = dimension;
         this.maxInFlightRegions = maxInFlightRegions;
+    }
+
+    /**
+     * Set the columns which have entities but no terrain, these are read for their entities only.
+     *
+     * @param entitiesOnlyColumns the positions of the columns.
+     */
+    public void setEntitiesOnlyColumns(Set<ChunkCoordPair> entitiesOnlyColumns) {
+        this.entitiesOnlyColumns = entitiesOnlyColumns;
     }
 
     @Override
@@ -173,8 +184,15 @@ public class BedrockWorldReader implements WorldReader {
     public void readRegion(RegionCoordPair region, Set<ChunkCoordPair> columns, ColumnConversionHandler columnConversionHandler) {
         for (ChunkCoordPair chunkCoordPair : columns) {
             if (!converter.shouldProcessColumn(dimension, chunkCoordPair)) continue;
+            boolean entitiesOnly = entitiesOnlyColumns.contains(chunkCoordPair);
             Task.async("Creating Column Reader", TaskWeight.LOW, () -> createColumnReader(chunkCoordPair))
-                    .thenConsume("Reading Column", TaskWeight.HIGHER, (columnReader) -> columnReader.readColumn(columnConversionHandler));
+                    .thenConsume("Reading Column", TaskWeight.HIGHER, (columnReader) -> {
+                        if (entitiesOnly) {
+                            columnReader.readEntitiesOnlyColumn(columnConversionHandler);
+                        } else {
+                            columnReader.readColumn(columnConversionHandler);
+                        }
+                    });
         }
     }
 
