@@ -107,4 +107,14 @@ public class BedrockEntityBaseTests {
         entity.setOriginalNBT(actor("minecraft:cow", 8, 0, 0, 0));
         assertFalse(BEDROCK.entityResolver().shouldRemoveBeforeWrite(column, entity));
     }
+
+    @Test
+    public void testCushionIsAttachedToItsBlock() {
+        CompoundTag bedrock = actor("minecraft:cushion", -17179862400L, 1190.5f, 66.5625f, -185.5f);
+        bedrock.put("Variant", 1);
+        CompoundTag java = convert(bedrock);
+        assertEquals("minecraft:cushion", java.getString("id"));
+        assertArrayEquals(new int[]{1190, 66, -186}, java.getIntArray("block_pos"), "Java needs the block the cushion is in");
+        assertArrayEquals(JavaEntityNBT.toIntArray(BedrockEntityUUIDs.toUUID(-17179862400L)), java.getIntArray("UUID"));
+    }
 }

@@ -24,5 +24,12 @@ public class JavaCushionEntityHandler extends EntityHandler<JavaResolvers, Compo
     @Override
     public void write(@NotNull JavaResolvers resolvers, @NotNull CompoundTag output, @NotNull CushionEntity value) {
         output.put("color", value.getColor().getName());
+
+        // A cushion is attached to the block it was placed in, which is the block it occupies
+        output.put("block_pos", new int[]{
+                (int) Math.floor(value.getPositionX()),
+                (int) Math.floor(value.getPositionY()),
+                (int) Math.floor(value.getPositionZ())
+        });
     }
 }
