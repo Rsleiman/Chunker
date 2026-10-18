@@ -6,8 +6,10 @@ import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVani
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * The entity types which are converted as a {@link GenericEntity}.
@@ -125,9 +127,69 @@ public final class GenericEntityTypes {
     ));
 
     /**
+     * Boats and rafts, in the order of the Bedrock boat Variant (0 oak to 10 poplar).
+     */
+    public static final List<ChunkerVanillaEntityType> BOATS = List.of(
+            ChunkerVanillaEntityType.OAK_BOAT,
+            ChunkerVanillaEntityType.SPRUCE_BOAT,
+            ChunkerVanillaEntityType.BIRCH_BOAT,
+            ChunkerVanillaEntityType.JUNGLE_BOAT,
+            ChunkerVanillaEntityType.ACACIA_BOAT,
+            ChunkerVanillaEntityType.DARK_OAK_BOAT,
+            ChunkerVanillaEntityType.MANGROVE_BOAT,
+            ChunkerVanillaEntityType.BAMBOO_RAFT,
+            ChunkerVanillaEntityType.CHERRY_BOAT,
+            ChunkerVanillaEntityType.PALE_OAK_BOAT,
+            ChunkerVanillaEntityType.POPLAR_BOAT
+    );
+
+    /**
+     * Chest boats and rafts, in the order of the Bedrock boat Variant (0 oak to 10 poplar).
+     */
+    public static final List<ChunkerVanillaEntityType> CHEST_BOATS = List.of(
+            ChunkerVanillaEntityType.OAK_CHEST_BOAT,
+            ChunkerVanillaEntityType.SPRUCE_CHEST_BOAT,
+            ChunkerVanillaEntityType.BIRCH_CHEST_BOAT,
+            ChunkerVanillaEntityType.JUNGLE_CHEST_BOAT,
+            ChunkerVanillaEntityType.ACACIA_CHEST_BOAT,
+            ChunkerVanillaEntityType.DARK_OAK_CHEST_BOAT,
+            ChunkerVanillaEntityType.MANGROVE_CHEST_BOAT,
+            ChunkerVanillaEntityType.BAMBOO_CHEST_RAFT,
+            ChunkerVanillaEntityType.CHERRY_CHEST_BOAT,
+            ChunkerVanillaEntityType.PALE_OAK_CHEST_BOAT,
+            ChunkerVanillaEntityType.POPLAR_CHEST_BOAT
+    );
+
+    /**
+     * Minecarts and boats with a container (slotted Items, or a loot table).
+     */
+    public static final Set<ChunkerEntityType> CONTAINERS = Collections.unmodifiableSet(Stream.concat(
+            Stream.of(ChunkerVanillaEntityType.CHEST_MINECART, ChunkerVanillaEntityType.HOPPER_MINECART),
+            CHEST_BOATS.stream()
+    ).collect(Collectors.toCollection(() -> EnumSet.noneOf(ChunkerVanillaEntityType.class))));
+
+    /**
+     * Entities which aren't living: dropped items, experience orbs, arrows, minecarts and boats.
+     */
+    public static final Set<ChunkerEntityType> NON_LIVING = Collections.unmodifiableSet(Stream.concat(
+            Stream.of(
+                    ChunkerVanillaEntityType.ITEM,
+                    ChunkerVanillaEntityType.EXPERIENCE_ORB,
+                    ChunkerVanillaEntityType.ARROW,
+                    ChunkerVanillaEntityType.MINECART,
+                    ChunkerVanillaEntityType.CHEST_MINECART,
+                    ChunkerVanillaEntityType.HOPPER_MINECART,
+                    ChunkerVanillaEntityType.TNT_MINECART
+            ),
+            Stream.concat(BOATS.stream(), CHEST_BOATS.stream())
+    ).collect(Collectors.toCollection(() -> EnumSet.noneOf(ChunkerVanillaEntityType.class))));
+
+    /**
      * Every entity type which is converted as a generic entity.
      */
-    public static final Set<ChunkerEntityType> ALL = LIVING;
+    public static final Set<ChunkerEntityType> ALL = Collections.unmodifiableSet(Stream.concat(LIVING.stream(), NON_LIVING.stream())
+            .map(ChunkerVanillaEntityType.class::cast)
+            .collect(Collectors.toCollection(() -> EnumSet.noneOf(ChunkerVanillaEntityType.class))));
 
     private GenericEntityTypes() {
     }

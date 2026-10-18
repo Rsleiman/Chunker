@@ -20,6 +20,8 @@ public class JavaGenericEntityHandler extends EntityHandler<JavaResolvers, Compo
         value.setEntityType(resolvers.entityResolver().getKey(input).orElseThrow());
         if (GenericEntityTypes.isLiving(value.getEntityType())) {
             JavaLivingEntityData.read(resolvers, input, value);
+        } else {
+            JavaNonLivingEntityData.read(resolvers, input, value);
         }
     }
 
@@ -27,6 +29,8 @@ public class JavaGenericEntityHandler extends EntityHandler<JavaResolvers, Compo
     public void write(@NotNull JavaResolvers resolvers, @NotNull CompoundTag output, @NotNull GenericEntity value) {
         if (GenericEntityTypes.isLiving(value.getEntityType())) {
             JavaLivingEntityData.write(resolvers, output, value);
+        } else {
+            JavaNonLivingEntityData.write(resolvers, output, value);
         }
     }
 }

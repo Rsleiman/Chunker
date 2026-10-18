@@ -102,7 +102,7 @@ public class ChunkerEntityProperty<V> extends Property<Entity, V> {
 
     // Living entities
     /**
-     * The current health.
+     * The current health (of a mob, a dropped item or an experience orb).
      */
     public static final ChunkerEntityProperty<Float> HEALTH = new ChunkerEntityProperty<>(
             "health",
@@ -176,7 +176,7 @@ public class ChunkerEntityProperty<V> extends Property<Entity, V> {
     );
     /**
      * The age in ticks of a breedable entity, negative for babies (counting up to 0) and positive for the breeding
-     * cooldown of adults.
+     * cooldown of adults. For dropped items and experience orbs, the ticks they have existed.
      */
     public static final ChunkerEntityProperty<Integer> AGE = new ChunkerEntityProperty<>(
             "age",
@@ -204,7 +204,7 @@ public class ChunkerEntityProperty<V> extends Property<Entity, V> {
             Boolean.class
     );
     /**
-     * The owner of a tamed entity.
+     * The owner of a tamed entity, or the entity which shot a projectile.
      */
     public static final ChunkerEntityProperty<UUID> OWNER = new ChunkerEntityProperty<>(
             "owner",
@@ -391,6 +391,48 @@ public class ChunkerEntityProperty<V> extends Property<Entity, V> {
      */
     public static final ChunkerEntityProperty<Integer> SIZE = new ChunkerEntityProperty<>(
             "size",
+            Integer.class
+    );
+    /**
+     * The item stack of a dropped item.
+     */
+    public static final ChunkerEntityProperty<ChunkerItemStack> ITEM = new ChunkerEntityProperty<>(
+            "item",
+            ChunkerItemStack.class
+    );
+    /**
+     * The experience an experience orb gives.
+     */
+    public static final ChunkerEntityProperty<Integer> EXPERIENCE_VALUE = new ChunkerEntityProperty<>(
+            "experience_value",
+            Integer.class
+    );
+    /**
+     * The loot table which fills a container entity when it's first opened (Java identifier).
+     */
+    public static final ChunkerEntityProperty<String> LOOT_TABLE = new ChunkerEntityProperty<>(
+            "loot_table",
+            String.class
+    );
+    /**
+     * The seed used with the loot table.
+     */
+    public static final ChunkerEntityProperty<Long> LOOT_TABLE_SEED = new ChunkerEntityProperty<>(
+            "loot_table_seed",
+            Long.class
+    );
+    /**
+     * Whether a projectile is stuck in a block.
+     */
+    public static final ChunkerEntityProperty<Boolean> IN_GROUND = new ChunkerEntityProperty<>(
+            "in_ground",
+            Boolean.class
+    );
+    /**
+     * Who can pick up an arrow: 0 nobody, 1 anyone, 2 only creative mode players.
+     */
+    public static final ChunkerEntityProperty<Integer> PICKUP = new ChunkerEntityProperty<>(
+            "pickup",
             Integer.class
     );
 
