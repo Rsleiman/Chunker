@@ -5,6 +5,7 @@ import com.hivemc.chunker.conversion.encoding.base.resolver.entity.EntityHandler
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
 import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntity;
+import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntityTypes;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import org.jetbrains.annotations.NotNull;
 
@@ -20,6 +21,9 @@ public class BedrockGenericEntityHandler extends EntityHandler<BedrockResolvers,
     @Override
     public void read(@NotNull BedrockResolvers resolvers, @NotNull CompoundTag input, @NotNull GenericEntity value) {
         value.setEntityType(resolvers.entityResolver().getKey(input).orElseThrow());
+        if (GenericEntityTypes.isLiving(value.getEntityType())) {
+            BedrockLivingEntityReader.read(resolvers, input, value);
+        }
     }
 
     @Override
