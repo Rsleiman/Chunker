@@ -138,8 +138,15 @@ public final class BedrockLivingEntityReader {
         }
     }
 
+    /**
+     * Get an entry of the Attributes list by name.
+     *
+     * @param input the actor NBT.
+     * @param name  the name of the attribute, e.g. minecraft:health.
+     * @return the attribute or null if not present.
+     */
     @Nullable
-    private static CompoundTag getAttribute(CompoundTag input, String name) {
+    public static CompoundTag getAttribute(CompoundTag input, String name) {
         ListTag<CompoundTag, Map<String, Tag<?>>> attributes = input.getList("Attributes", CompoundTag.class, null);
         if (attributes == null) return null;
         for (CompoundTag attribute : attributes) {
@@ -254,8 +261,22 @@ public final class BedrockLivingEntityReader {
     }
 
     private static void readEffects(BedrockResolvers resolvers, CompoundTag input, GenericEntity entity) {
+        List<ChunkerMobEffect> effects = readEffectList(resolvers, input);
+        if (!effects.isEmpty()) {
+            entity.put(ChunkerEntityProperty.EFFECTS, effects);
+        }
+    }
+
+    /**
+     * Read the active effects of an actor or player (ActiveEffects), skipping effects which can't be converted.
+     *
+     * @param resolvers the resolvers.
+     * @param input     the actor or player NBT.
+     * @return the effects, empty if there are none.
+     */
+    public static List<ChunkerMobEffect> readEffectList(BedrockResolvers resolvers, CompoundTag input) {
         ListTag<CompoundTag, Map<String, Tag<?>>> activeEffects = input.getList("ActiveEffects", CompoundTag.class, null);
-        if (activeEffects == null || activeEffects.size() == 0) return;
+        if (activeEffects == null || activeEffects.size() == 0) return Collections.emptyList();
 
         List<ChunkerMobEffect> effects = new ArrayList<>(activeEffects.size());
         for (CompoundTag effect : activeEffects) {
@@ -269,9 +290,7 @@ public final class BedrockLivingEntityReader {
                     effect.getByte("ShowParticles", (byte) 1) == 1
             ));
         }
-        if (!effects.isEmpty()) {
-            entity.put(ChunkerEntityProperty.EFFECTS, effects);
-        }
+        return effects;
     }
 
     private static void readAge(BedrockResolvers resolvers, CompoundTag input, GenericEntity entity, ChunkerEntityType type) {

@@ -23,6 +23,7 @@ public class ChunkerLevel {
     private List<ChunkerPortal> portals;
     private List<ChunkerStructureVolume> structureVolumes = new ArrayList<>();
     private Map<Dimension, LongSet> structureColumns = new HashMap<>();
+    private List<ChunkerLevelPlayer> players = new ArrayList<>();
 
     /**
      * Create a new level.
@@ -176,6 +177,25 @@ public class ChunkerLevel {
     }
 
     /**
+     * Get every player saved in the world, including the local player (if present), each of which becomes a player
+     * profile.
+     *
+     * @return a list of the players.
+     */
+    public List<ChunkerLevelPlayer> getPlayers() {
+        return players;
+    }
+
+    /**
+     * Set the players saved in the world.
+     *
+     * @param players the players.
+     */
+    public void setPlayers(List<ChunkerLevelPlayer> players) {
+        this.players = players;
+    }
+
+    /**
      * Find the map index based on a mapId.
      *
      * @param originalMapId the mapId to look for.
@@ -212,6 +232,7 @@ public class ChunkerLevel {
                 ", portals=" + getPortals() +
                 ", structureVolumes=" + getStructureVolumes() +
                 ", structureColumns=" + getStructureColumns() +
+                ", players=" + getPlayers() +
                 '}';
     }
 }

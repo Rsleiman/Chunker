@@ -15,7 +15,6 @@ import com.hivemc.chunker.conversion.handlers.WorldConversionHandler;
 import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerLodestoneData;
 import com.hivemc.chunker.conversion.intermediate.level.*;
 import com.hivemc.chunker.conversion.intermediate.level.map.ChunkerMap;
@@ -26,13 +25,11 @@ import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
-import com.hivemc.chunker.nbt.tags.primitive.FloatTag;
 import com.hivemc.chunker.nbt.tags.primitive.IntTag;
 import com.hivemc.chunker.scheduling.task.FutureTask;
 import com.hivemc.chunker.scheduling.task.ProgressiveTask;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
-import it.unimi.dsi.fastutil.bytes.Byte2ObjectAVLTreeMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -238,7 +235,7 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
     protected Task<WorldConversionHandler> collectLevelData(LevelConversionHandler levelConversionHandler) {
         ChunkerLevel output = new ChunkerLevel();
         ProgressiveTask<Void> parseLevelSettings = Task.asyncConsume("Parsing Level Settings", TaskWeight.NORMAL, this::parseLevelSettings, output);
-        ProgressiveTask<Void> parseLocalPlayer = Task.asyncConsume("Parsing Local Player", TaskWeight.NORMAL, this::parseLocalPlayer, output);
+        ProgressiveTask<Void> parsePlayers = Task.asyncConsume("Parsing Players", TaskWeight.NORMAL, this::parsePlayers, output);
         ProgressiveTask<Void> parseMaps = Task.asyncConsume("Parsing Saved Maps", TaskWeight.NORMAL, this::parseMaps, output);
         ProgressiveTask<Void> parsePortals = Task.asyncConsume("Parsing Portals", TaskWeight.NORMAL, this::parsePortals, output);
         ProgressiveTask<Void> parseStructures = Task.asyncConsume("Parsing Structures", TaskWeight.NORMAL, this::parseStructures, output);
@@ -246,7 +243,7 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
         ProgressiveTask<Void> parseVillages = Task.asyncConsume("Parsing Villages", TaskWeight.NORMAL, this::parseVillages, output);
 
         // When those tasks are done we can convert the level (entities are read after this)
-        return Task.join(parseLevelSettings, parseLocalPlayer, parseMaps, parsePortals, parseStructures, parseCustomBiomes, parseVillages)
+        return Task.join(parseLevelSettings, parsePlayers, parseMaps, parsePortals, parseStructures, parseCustomBiomes, parseVillages)
                 .thenUnwrap("Converting Level", TaskWeight.LOW, levelConversionHandler::convertLevel, output);
     }
 
@@ -389,90 +386,55 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
     }
 
     /**
+     * Parse the players of the level: the local player (singleplayer worlds) and every player record of a server
+     * world (player_server_ keys). The records of linked accounts (player_ keys) are never read.
+     *
+     * @param output the output to set the players.
+     */
+    protected void parsePlayers(ChunkerLevel output) {
+        List<ChunkerLevelPlayer> players = new ArrayList<>();
+        ChunkerLevelPlayer localPlayer = parseLocalPlayer(output);
+        if (localPlayer != null) {
+            players.add(localPlayer);
+        }
+
+        try (DBIterator iterator = database.iterator(new ReadOptions().fillCache(false))) {
+            iterator.seek(LevelDBKey.SERVER_PLAYER_PREFIX);
+            while (iterator.hasNext()) {
+                Map.Entry<byte[], byte[]> entry = iterator.next();
+                if (!LevelDBKey.startsWith(entry.getKey(), LevelDBKey.SERVER_PLAYER_PREFIX)) break;
+                try {
+                    CompoundTag player = Objects.requireNonNull(Tag.readBedrockNBT(entry.getValue()));
+                    players.add(BedrockPlayerReader.read(resolvers, converter, player));
+                } catch (Exception e) {
+                    converter.logNonFatalException(new Exception("Failed to parse a player record", e));
+                }
+            }
+        } catch (Exception e) {
+            converter.logNonFatalException(e);
+        }
+        output.setPlayers(players);
+    }
+
+    /**
      * Parse the local player data.
      *
      * @param output the output to set the player data.
+     * @return the local player or null if there isn't one.
      */
-    protected void parseLocalPlayer(ChunkerLevel output) {
+    @Nullable
+    protected ChunkerLevelPlayer parseLocalPlayer(ChunkerLevel output) {
         byte[] bytes = database.get(LevelDBKey.LOCAL_PLAYER);
-        if (bytes == null) return; // No local player
+        if (bytes == null) return null; // No local player
         try {
             // Parse the NBT
             CompoundTag player = Objects.requireNonNull(Tag.readBedrockNBT(bytes));
-
-            // Read the position data
-            List<Float> positions = player.getListValues("Pos", FloatTag.class, List.of(0F, 0F, 0F));
-            List<Float> motion = player.getListValues("Motion", FloatTag.class, List.of(0F, 0F, 0F));
-            List<Float> rotation = player.getListValues("Rotation", FloatTag.class, List.of(0F, 0F));
-
-            // Parse the inventory
-            Byte2ObjectAVLTreeMap<ChunkerItemStack> inventory = new Byte2ObjectAVLTreeMap<>();
-
-            // Parse main inventory
-            ListTag<CompoundTag, Map<String, Tag<?>>> items = player.getList("Inventory", CompoundTag.class, null);
-            if (items != null) {
-                byte index = 0;
-                for (CompoundTag itemTag : items) {
-                    byte slot = itemTag.getByte("Slot", index);
-
-                    // Read item
-                    ChunkerItemStack item = resolvers.readItem(itemTag);
-                    inventory.put(slot, item);
-
-                    // Increment index
-                    index++;
-                }
-            }
-
-            // Parse armor (reversed)
-            ListTag<CompoundTag, Map<String, Tag<?>>> armor = player.getList("Armor", CompoundTag.class, null);
-            if (armor != null) {
-                byte index = 0;
-                for (CompoundTag itemTag : armor) {
-                    // To line up with Java an offset of 100 is used
-                    byte slot = (byte) (100 + (3 - itemTag.getByte("Slot", index)));
-
-                    // Read item
-                    ChunkerItemStack item = resolvers.readItem(itemTag);
-                    inventory.put(slot, item);
-
-                    // Increment index
-                    index++;
-                }
-            }
-
-            // Parse off-hand
-            ListTag<CompoundTag, Map<String, Tag<?>>> offhand = player.getList("Offhand", CompoundTag.class, null);
-            if (offhand != null) {
-                byte index = 0;
-                for (CompoundTag itemTag : offhand) {
-                    // To line up with Java an offset of 150 is used
-                    byte slot = (byte) (150 + itemTag.getByte("Slot", index));
-
-                    // Read item
-                    ChunkerItemStack item = resolvers.readItem(itemTag);
-                    inventory.put(slot, item);
-
-                    // Increment index
-                    index++;
-                }
-            }
-            DimensionRegistry dimensionRegistry = converter.getDimensionRegistry();
-            output.setPlayer(new ChunkerLevelPlayer(
-                    dimensionRegistry.fromBedrockNBT(player.get("DimensionId"), Dimension.OVERWORLD),
-                    positions.get(0),
-                    positions.get(1) - PLAYER_HEIGHT, // Offset in Bedrock
-                    positions.get(2),
-                    motion.get(0),
-                    motion.get(1),
-                    motion.get(2),
-                    rotation.get(0),
-                    rotation.get(1),
-                    inventory,
-                    player.getInt("PlayerGameMode", 0)
-            ));
+            ChunkerLevelPlayer localPlayer = BedrockPlayerReader.read(resolvers, converter, player);
+            output.setPlayer(localPlayer);
+            return localPlayer;
         } catch (Exception e) {
             converter.logNonFatalException(e);
+            return null;
         }
     }
 
