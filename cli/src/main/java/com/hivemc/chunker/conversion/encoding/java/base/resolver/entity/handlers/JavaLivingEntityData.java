@@ -73,18 +73,7 @@ public final class JavaLivingEntityData {
         // Effects
         List<ChunkerMobEffect> effects = entity.get(ChunkerEntityProperty.EFFECTS);
         if (effects != null) {
-            ListTag<CompoundTag, Map<String, Tag<?>>> effectsTag = new ListTag<>(TagType.COMPOUND, effects.size());
-            for (ChunkerMobEffect effect : effects) {
-                CompoundTag effectTag = new CompoundTag();
-                effectTag.put("id", resolvers.writeEffect(effect.type()));
-                effectTag.put("amplifier", (byte) effect.amplifier());
-                effectTag.put("duration", effect.duration());
-                effectTag.put("ambient", effect.ambient() ? (byte) 1 : (byte) 0);
-                effectTag.put("show_particles", effect.showParticles() ? (byte) 1 : (byte) 0);
-                effectTag.put("show_icon", effect.showParticles() ? (byte) 1 : (byte) 0);
-                effectsTag.add(effectTag);
-            }
-            output.put("active_effects", effectsTag);
+            output.put("active_effects", writeEffects(resolvers, effects));
         }
 
         writeBoolean(output, "PersistenceRequired", entity.get(ChunkerEntityProperty.PERSISTENT));
@@ -377,6 +366,28 @@ public final class JavaLivingEntityData {
     public static Optional<CompoundTag> writeItem(JavaResolvers resolvers, @Nullable ChunkerItemStack item) {
         if (item == null || item.getIdentifier().isAir()) return Optional.empty();
         return resolvers.writeItem(item);
+    }
+
+    /**
+     * Write active effects in the format of active_effects.
+     *
+     * @param resolvers the resolvers.
+     * @param effects   the effects.
+     * @return the list of effects.
+     */
+    public static ListTag<CompoundTag, Map<String, Tag<?>>> writeEffects(JavaResolvers resolvers, List<ChunkerMobEffect> effects) {
+        ListTag<CompoundTag, Map<String, Tag<?>>> effectsTag = new ListTag<>(TagType.COMPOUND, effects.size());
+        for (ChunkerMobEffect effect : effects) {
+            CompoundTag effectTag = new CompoundTag();
+            effectTag.put("id", resolvers.writeEffect(effect.type()));
+            effectTag.put("amplifier", (byte) effect.amplifier());
+            effectTag.put("duration", effect.duration());
+            effectTag.put("ambient", effect.ambient() ? (byte) 1 : (byte) 0);
+            effectTag.put("show_particles", effect.showParticles() ? (byte) 1 : (byte) 0);
+            effectTag.put("show_icon", effect.showParticles() ? (byte) 1 : (byte) 0);
+            effectsTag.add(effectTag);
+        }
+        return effectsTag;
     }
 
     private static void writeAttribute(ListTag<CompoundTag, Map<String, Tag<?>>> attributes, String id, @Nullable Double base) {

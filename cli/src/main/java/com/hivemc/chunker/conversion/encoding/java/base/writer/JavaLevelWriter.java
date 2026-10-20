@@ -72,6 +72,11 @@ public class JavaLevelWriter implements LevelWriter, JavaReaderWriter {
         // Ensure directory has been made
         outputFolder.mkdirs();
 
+        // A player file left from an earlier conversion would be loaded by Java
+        if (!chunkerLevel.getPlayers().isEmpty() && JavaPlayerData.isSupported(resolvers.dataVersion().getVersion())) {
+            JavaPlayerProfiles.checkOutputHasNoPlayers(outputFolder, resolvers.javaLevelDirectoryResolver().getPlayersDataDirectory());
+        }
+
         // Normalise map IDs (they need to be numerical for Java)
         short id = 0;
         for (ChunkerMap map : chunkerLevel.getMaps()) {
@@ -98,6 +103,7 @@ public class JavaLevelWriter implements LevelWriter, JavaReaderWriter {
     protected void writeLevelData(ChunkerLevel chunkerLevel) {
         Task.asyncConsume("Writing Level Settings", TaskWeight.NORMAL, this::writeLevelSettings, chunkerLevel);
         Task.asyncConsume("Writing Saved Maps", TaskWeight.NORMAL, this::writeMaps, chunkerLevel);
+        Task.asyncConsume("Writing Player Profiles", TaskWeight.NORMAL, this::writePlayerProfiles, chunkerLevel);
     }
 
     /**
@@ -363,8 +369,32 @@ public class JavaLevelWriter implements LevelWriter, JavaReaderWriter {
      */
     protected void writePlayer(ChunkerLevel chunkerLevel, CompoundTag level, @Nullable ChunkerLevelPlayer player) throws Exception {
         if (player == null) return; // Don't write the player if it doesn't exist
-        CompoundTag playerTag = level.getOrCreateCompound("Player");
+        writePlayerData(chunkerLevel, level.getOrCreateCompound("Player"), player);
+    }
 
+    /**
+     * Create the Java player file of a player (a player profile).
+     *
+     * @param chunkerLevel the chunker level.
+     * @param player       the player.
+     * @return the player NBT.
+     * @throws Exception if it failed to write the player.
+     */
+    public CompoundTag createPlayerTag(ChunkerLevel chunkerLevel, ChunkerLevelPlayer player) throws Exception {
+        CompoundTag playerTag = new CompoundTag();
+        writePlayerData(chunkerLevel, playerTag, player);
+        return playerTag;
+    }
+
+    /**
+     * Write the data of a player.
+     *
+     * @param chunkerLevel the chunker level.
+     * @param playerTag    the player NBT to write to.
+     * @param player       the player.
+     * @throws Exception if it failed to write the player.
+     */
+    protected void writePlayerData(ChunkerLevel chunkerLevel, CompoundTag playerTag, ChunkerLevelPlayer player) throws Exception {
         // Add dataVersion
         playerTag.put("DataVersion", resolvers.dataVersion().getDataVersion());
 
@@ -440,6 +470,29 @@ public class JavaLevelWriter implements LevelWriter, JavaReaderWriter {
             }
             playerTag.put("equipment", equipment);
         }
+
+        // Write the rest of the player's data (health, hunger, experience, ender chest, spawn point...)
+        if (JavaPlayerData.isSupported(resolvers.dataVersion().getVersion())) {
+            JavaPlayerData.write(resolvers, playerTag, player);
+        }
+    }
+
+    /**
+     * Write a profile for every player of the level, and install the profiles of players assigned to an account.
+     *
+     * @param chunkerLevel the level containing the players.
+     * @throws Exception if it failed to write the profiles.
+     */
+    protected void writePlayerProfiles(ChunkerLevel chunkerLevel) throws Exception {
+        if (chunkerLevel.getPlayers().isEmpty() || !JavaPlayerData.isSupported(resolvers.dataVersion().getVersion())) return;
+        JavaPlayerProfiles.write(
+                outputFolder,
+                resolvers.javaLevelDirectoryResolver().getPlayersDataDirectory(),
+                chunkerLevel.getPlayers(),
+                player -> createPlayerTag(chunkerLevel, player),
+                converter,
+                chunkerLevel.getSettings() != null ? chunkerLevel.getSettings().LevelName : null
+        );
     }
 
     /**

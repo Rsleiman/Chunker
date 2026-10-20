@@ -39,14 +39,11 @@ public class LevelWriter extends com.hivemc.chunker.conversion.encoding.java.v1_
     }
 
     @Override
-    protected void writePlayer(ChunkerLevel chunkerLevel, CompoundTag level, @Nullable ChunkerLevelPlayer player) throws Exception {
-        super.writePlayer(chunkerLevel, level, player);
+    protected void writePlayerData(ChunkerLevel chunkerLevel, CompoundTag playerTag, ChunkerLevelPlayer player) throws Exception {
+        super.writePlayerData(chunkerLevel, playerTag, player);
 
         // Use dimension name
-        if (player != null) {
-            CompoundTag playerTag = level.getOrCreateCompound("Player");
-            playerTag.put("Dimension", player.getDimension().getIdentifier());
-        }
+        playerTag.put("Dimension", player.getDimension().getIdentifier());
     }
 
     @Override

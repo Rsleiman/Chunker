@@ -90,6 +90,7 @@ public class WorldConverter implements Converter {
     private boolean processBlockEntities = true;
     private boolean processLootTables = true;
     private Map<Long, UUID> bedrockPlayerUUIDs = Map.of();
+    private @Nullable String inputDescription;
     private boolean processBiomes = true;
     private boolean processHeightMap = true;
     private boolean processLighting = true;
@@ -229,6 +230,15 @@ public class WorldConverter implements Converter {
     }
 
     /**
+     * Set a description of the input world, noted in the player profiles.
+     *
+     * @param inputDescription the description (e.g. the path of the input world).
+     */
+    public void setInputDescription(@Nullable String inputDescription) {
+        this.inputDescription = inputDescription;
+    }
+
+    /**
      * Set whether biomes should be converted.
      *
      * @param processBiomes true if they should be converted.
@@ -324,6 +334,11 @@ public class WorldConverter implements Converter {
     @Override
     public Map<Long, UUID> getBedrockPlayerUUIDs() {
         return bedrockPlayerUUIDs;
+    }
+
+    @Override
+    public @Nullable String getInputDescription() {
+        return inputDescription;
     }
 
     @Override

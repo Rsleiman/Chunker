@@ -127,7 +127,7 @@ public class CLI implements Runnable {
 
     @CommandLine.Option(
             names = {"--bedrockPlayerUUIDs"},
-            description = "A JSON file/object mapping Bedrock player UniqueIDs to the Java UUIDs of their accounts, used for the owners of tamed mobs and leash holders.",
+            description = "A JSON file/object mapping Bedrock player UniqueIDs to the Java UUIDs of their accounts. A mapped player's profile is installed for that account, and the owners of tamed mobs and leash holders use it.",
             converter = JsonObjectOrFile.Converter.class
     )
     private JsonObjectOrFile bedrockPlayerUUIDs;
@@ -163,6 +163,7 @@ public class CLI implements Runnable {
 
             // Create the converter
             WorldConverter worldConverter = new WorldConverter(UUID.randomUUID());
+            worldConverter.setInputDescription(inputDirectory.getAbsolutePath());
 
             // If any of the mappings file aren't present, check if they're inside the input world
 

@@ -69,6 +69,17 @@ public interface Converter {
     Map<Long, UUID> getBedrockPlayerUUIDs();
 
     /**
+     * Get a description of the input world (e.g. its path), noted in the player profiles so a converted world can be
+     * traced back to its source.
+     *
+     * @return the description or null if unknown.
+     */
+    @Nullable
+    default String getInputDescription() {
+        return null;
+    }
+
+    /**
      * Whether biomes should be processed.
      *
      * @return true if it should be processed.
