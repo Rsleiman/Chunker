@@ -103,10 +103,10 @@ public class JavaBlockEntityResolver extends BlockEntityResolver<JavaResolvers, 
         }
         if (version.isGreaterThanOrEqual(1, 20, 3)) {
             register(new JavaCrafterBlockEntityHandler());
-            register(new EmptyBlockEntityHandler<>("minecraft:trial_spawner", TrialSpawnerBlockEntity.class, TrialSpawnerBlockEntity::new));
+            register(new JavaTrialSpawnerBlockEntityHandler());
         }
         if (version.isGreaterThanOrEqual(1, 20, 5)) {
-            register(new EmptyBlockEntityHandler<>("minecraft:vault", VaultBlockEntity.class, VaultBlockEntity::new));
+            register(new JavaVaultBlockEntityHandler());
         }
         if (version.isGreaterThanOrEqual(1, 21, 2)) {
             register(new EmptyBlockEntityHandler<>("minecraft:creaking_heart", CreakingHeartBlockEntity.class, CreakingHeartBlockEntity::new));

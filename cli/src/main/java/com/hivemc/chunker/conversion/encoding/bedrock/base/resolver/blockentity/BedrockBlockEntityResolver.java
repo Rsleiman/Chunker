@@ -128,12 +128,12 @@ public class BedrockBlockEntityResolver extends BlockEntityResolver<BedrockResol
 
         // R20U6
         if (version.isGreaterThanOrEqual(1, 20, 60)) {
-            register(new EmptyBlockEntityHandler<>("TrialSpawner", TrialSpawnerBlockEntity.class, TrialSpawnerBlockEntity::new));
+            register(new BedrockTrialSpawnerBlockEntityHandler());
         }
 
         // R20U7
         if (version.isGreaterThanOrEqual(1, 20, 70)) {
-            register(new EmptyBlockEntityHandler<>("Vault", VaultBlockEntity.class, VaultBlockEntity::new));
+            register(new BedrockVaultBlockEntityHandler());
         }
 
         // R21U5
