@@ -1,20 +1,28 @@
 package com.hivemc.chunker.conversion.player;
 
 import com.hivemc.chunker.conversion.WorldConverter;
+import com.hivemc.chunker.conversion.bedrock.resolver.MockConverter;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.BedrockEntityUUIDs;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.item.ChunkerVanillaItemType;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.potion.ChunkerEffectType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerMobEffect;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelPlayer;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerPlayerAbilities;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerRecipeStation;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerRespawnPoint;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerUnlockedRecipe;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -276,6 +284,41 @@ public class BedrockPlayerReaderTests {
 
         // The player is read the same as without them: the vehicle and the parrot stay in the world
         assertEquals(read(UNMAPPED, record()).toString(), player.toString());
+    }
+
+    @Test
+    public void testUnlockedRecipes() {
+        CompoundTag record = record();
+        // A recipe built into the game, a dye recipe, a bed (coloured by its data value), a furnace recipe that is
+        // also made in a smoker and on a campfire, and an ID that isn't a recipe
+        setUnlockedRecipes(record, "TrapdoorBirch_recipeId", "harness_color_1_3", "bed_color_bamboo_4",
+                "minecraft:furnace_beef", "not_a_recipe");
+        List<String> missing = new ArrayList<>();
+        WorldConverter converter = new MockConverter(new ChunkerLevel(null, null, Collections.emptyList(), null, Collections.emptyList())) {
+            @Override
+            public void logMissingMapping(MissingMappingType type, String identifier) {
+                missing.add(type + " " + identifier);
+            }
+        };
+        List<ChunkerUnlockedRecipe> recipes = read(converter, record).getUnlockedRecipes();
+
+        assertNotNull(recipes);
+        // A block item's identifier carries the block's states; the type is what the recipe makes
+        List<String> found = recipes.stream().map(recipe -> recipe.station() + " " + (recipe.result().getIdentifier() instanceof ChunkerBlockIdentifier block
+                ? block.getType() : recipe.result().getIdentifier())).toList();
+        assertEquals(List.of(
+                "CRAFTING_TABLE " + ChunkerVanillaBlockType.BIRCH_TRAPDOOR,
+                "CRAFTING_TABLE " + ChunkerVanillaItemType.BROWN_HARNESS,
+                "CRAFTING_TABLE " + ChunkerVanillaBlockType.YELLOW_BED,
+                "CAMPFIRE " + ChunkerVanillaItemType.COOKED_BEEF,
+                "FURNACE " + ChunkerVanillaItemType.COOKED_BEEF,
+                "SMOKER " + ChunkerVanillaItemType.COOKED_BEEF
+        ), found);
+        assertEquals(List.of("RECIPE not_a_recipe"), missing);
+
+        // A record without recipe_unlocking
+        assertNull(read(UNMAPPED, record()).getUnlockedRecipes());
+        assertEquals(ChunkerRecipeStation.SMOKER, ChunkerRecipeStation.fromName("smoker"));
     }
 
     private static void assertItem(ChunkerItemStack item, ChunkerVanillaItemType type, int count) {

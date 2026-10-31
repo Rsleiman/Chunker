@@ -16,6 +16,7 @@ import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
 import com.hivemc.chunker.nbt.tags.primitive.DoubleTag;
+import com.hivemc.chunker.nbt.tags.primitive.StringTag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -98,6 +99,34 @@ public class JavaPlayerWriterTests {
         record.put("DeathPositionY", 71);
         record.put("DeathPositionZ", -322);
         return record;
+    }
+
+    @Test
+    public void testUnlockedRecipesBecomeTheJavaRecipesForTheSameItems() throws Exception {
+        CompoundTag record = record();
+        setUnlockedRecipes(record, "TrapdoorBirch_recipeId", "harness_color_1_3", "bed_color_bamboo_4",
+                "minecraft:furnace_beef", "minecraft:stonecutter_stonebrick_slab", "minecraft:Torch_charcoal_recipeId");
+        CompoundTag recipeBook = write(record).getCompound("recipeBook");
+
+        assertNotNull(recipeBook);
+        // Every Java recipe at the same station that makes the same item, sorted
+        assertEquals(List.of(
+                "minecraft:birch_trapdoor",
+                "minecraft:brown_harness",
+                "minecraft:cooked_beef",
+                "minecraft:cooked_beef_from_campfire_cooking",
+                "minecraft:cooked_beef_from_smoking",
+                "minecraft:dye_brown_harness",
+                "minecraft:dye_yellow_bed",
+                "minecraft:stone_brick_slab_from_stone_bricks_stonecutting",
+                "minecraft:stone_brick_slab_from_stone_stonecutting",
+                "minecraft:torch",
+                "minecraft:yellow_bed"
+        ), recipeBook.getListValues("recipes", StringTag.class, null));
+        assertEquals(List.of(), recipeBook.getListValues("toBeDisplayed", StringTag.class, null));
+
+        // No recipe book without unlocked recipes
+        assertFalse(write(record()).contains("recipeBook"));
     }
 
     @Test

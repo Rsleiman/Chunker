@@ -235,7 +235,8 @@ public interface Converter {
         PAINTING,
         ENCHANTMENT,
         TRIM_MATERIAL,
-        TRIM_PATTERN;
+        TRIM_PATTERN,
+        RECIPE;
 
         private final String name;
 

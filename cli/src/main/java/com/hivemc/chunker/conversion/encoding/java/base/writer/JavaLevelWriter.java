@@ -473,7 +473,7 @@ public class JavaLevelWriter implements LevelWriter, JavaReaderWriter {
 
         // Write the rest of the player's data (health, hunger, experience, ender chest, spawn point...)
         if (JavaPlayerData.isSupported(resolvers.dataVersion().getVersion())) {
-            JavaPlayerData.write(resolvers, playerTag, player);
+            JavaPlayerData.write(resolvers, converter, playerTag, player);
         }
     }
 

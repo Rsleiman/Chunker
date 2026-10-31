@@ -11,6 +11,7 @@ import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelPlayer;
 import com.hivemc.chunker.nbt.TagType;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
+import com.hivemc.chunker.nbt.tags.primitive.StringTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
 
 import java.util.Collections;
@@ -204,5 +205,21 @@ public final class BedrockPlayers {
             slots.add(empty);
         }
         return slots;
+    }
+
+    /**
+     * Set a record's unlocked recipes, as Bedrock saves them.
+     *
+     * @param record the player record.
+     * @param ids    the recipe IDs.
+     */
+    public static void setUnlockedRecipes(CompoundTag record, String... ids) {
+        ListTag<StringTag, String> list = new ListTag<>(TagType.STRING, ids.length);
+        for (String id : ids) {
+            list.add(new StringTag(id));
+        }
+        CompoundTag recipeUnlocking = new CompoundTag();
+        recipeUnlocking.put("unlocked_recipes", list);
+        record.put("recipe_unlocking", recipeUnlocking);
     }
 }

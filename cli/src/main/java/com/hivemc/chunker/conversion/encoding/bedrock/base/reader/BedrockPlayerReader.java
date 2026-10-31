@@ -4,24 +4,30 @@ import com.hivemc.chunker.conversion.encoding.base.Converter;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.BedrockEntityUUIDs;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.handlers.BedrockLivingEntityReader;
+import com.hivemc.chunker.conversion.encoding.bedrock.util.BedrockRecipeTable;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerMobEffect;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelPlayer;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerPlayerAbilities;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerRecipeStation;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerRespawnPoint;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerUnlockedRecipe;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
 import com.hivemc.chunker.nbt.tags.primitive.FloatTag;
+import com.hivemc.chunker.nbt.tags.primitive.StringTag;
 import it.unimi.dsi.fastutil.bytes.Byte2ObjectAVLTreeMap;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Reads a Bedrock player record (the local player, or a player_server_ record of a server world).
@@ -51,6 +57,11 @@ public final class BedrockPlayerReader {
      * The PlayerUIItems slot of the crafting result, which is a preview rather than an item the player holds.
      */
     private static final int UI_CREATED_OUTPUT_SLOT = 50;
+    /**
+     * The torches, which Bedrock saves as items with the block state torch_facing_direction "unknown" (the standing
+     * torch). Read by name alone, a torch is a wall torch.
+     */
+    private static final Set<String> TORCHES = Set.of("minecraft:torch", "minecraft:soul_torch", "minecraft:redstone_torch", "minecraft:copper_torch");
 
     private BedrockPlayerReader() {
     }
@@ -180,7 +191,54 @@ public final class BedrockPlayerReader {
                 ));
             }
         }
+
+        output.setUnlockedRecipes(readUnlockedRecipes(resolvers, converter, player));
         return output;
+    }
+
+    /**
+     * Read the recipes a player has unlocked (recipe_unlocking), as the stations they are made
+     * at and the items they make.
+     *
+     * @param resolvers the resolvers, for the items.
+     * @param converter the converter, for reporting recipes which aren't known.
+     * @param player    the player NBT.
+     * @return the recipes or null if the record has none.
+     */
+    @Nullable
+    static List<ChunkerUnlockedRecipe> readUnlockedRecipes(BedrockResolvers resolvers, Converter converter, CompoundTag player) {
+        CompoundTag recipeUnlocking = player.getCompound("recipe_unlocking");
+        if (recipeUnlocking == null) return null;
+        List<String> ids = recipeUnlocking.getListValues("unlocked_recipes", StringTag.class, null);
+        if (ids == null) return null;
+
+        Set<ChunkerUnlockedRecipe> recipes = new LinkedHashSet<>();
+        for (String id : ids) {
+            BedrockRecipeTable.Entry entry = BedrockRecipeTable.get(id);
+            if (entry == null) {
+                converter.logMissingMapping(Converter.MissingMappingType.RECIPE, id);
+                continue;
+            }
+
+            CompoundTag itemTag = new CompoundTag(3);
+            itemTag.put("Name", entry.item());
+            itemTag.put("Damage", (short) entry.data());
+            itemTag.put("Count", (byte) 1);
+            if (TORCHES.contains(entry.item())) {
+                CompoundTag states = new CompoundTag(1);
+                states.put("torch_facing_direction", "unknown");
+                CompoundTag block = new CompoundTag(2);
+                block.put("name", entry.item());
+                block.put("states", states);
+                itemTag.put("Block", block);
+            }
+            ChunkerItemStack result = BedrockLivingEntityReader.readItem(resolvers, itemTag);
+            if (result == null) continue;
+            for (ChunkerRecipeStation station : entry.stations()) {
+                recipes.add(new ChunkerUnlockedRecipe(station, result));
+            }
+        }
+        return new ArrayList<>(recipes);
     }
 
     /**

@@ -46,6 +46,7 @@ public class ChunkerLevelPlayer {
     private @Nullable ChunkerPlayerAbilities abilities;
     private @Nullable ChunkerRespawnPoint respawnPoint;
     private @Nullable ChunkerGlobalPosition lastDeathLocation;
+    private @Nullable List<ChunkerUnlockedRecipe> unlockedRecipes;
 
     /**
      * Create a new player.
@@ -538,6 +539,25 @@ public class ChunkerLevelPlayer {
         this.lastDeathLocation = lastDeathLocation;
     }
 
+    /**
+     * Get the recipes the player has unlocked.
+     *
+     * @return the recipes or null if the input doesn't record them.
+     */
+    @Nullable
+    public List<ChunkerUnlockedRecipe> getUnlockedRecipes() {
+        return unlockedRecipes;
+    }
+
+    /**
+     * Set the recipes the player has unlocked.
+     *
+     * @param unlockedRecipes the recipes or null.
+     */
+    public void setUnlockedRecipes(@Nullable List<ChunkerUnlockedRecipe> unlockedRecipes) {
+        this.unlockedRecipes = unlockedRecipes;
+    }
+
     @Override
     public String toString() {
         return "ChunkerLevelPlayer{" +
@@ -571,6 +591,7 @@ public class ChunkerLevelPlayer {
                 ", abilities=" + getAbilities() +
                 ", respawnPoint=" + getRespawnPoint() +
                 ", lastDeathLocation=" + getLastDeathLocation() +
+                ", unlockedRecipes=" + getUnlockedRecipes() +
                 '}';
     }
 }
