@@ -113,14 +113,14 @@ public final class BedrockPlayerReader {
             output.setAccountUUID(converter.getBedrockPlayerUUIDs().get(uniqueId));
         }
 
-        // Health, air and falling
+        // Health, air and falling (from 1.26.60 Bedrock leaves Current out when it equals Base)
         CompoundTag health = BedrockLivingEntityReader.getAttribute(player, "minecraft:health");
         if (health != null) {
             output.setHealth(health.getFloat("Current", health.getFloat("Base", 20F)));
         }
         CompoundTag absorption = BedrockLivingEntityReader.getAttribute(player, "minecraft:absorption");
         if (absorption != null) {
-            output.setAbsorption(absorption.getFloat("Current", 0F));
+            output.setAbsorption(absorption.getFloat("Current", absorption.getFloat("Base", 0F)));
         }
         player.getOptionalValue("Air", Short.class).ifPresent(output::setAir);
         player.getOptionalValue("OnGround", Byte.class).ifPresent(value -> output.setOnGround(value == 1));
@@ -129,15 +129,15 @@ public final class BedrockPlayerReader {
         // Hunger
         CompoundTag hunger = BedrockLivingEntityReader.getAttribute(player, "minecraft:player.hunger");
         if (hunger != null) {
-            output.setFoodLevel(Math.round(hunger.getFloat("Current", 20F)));
+            output.setFoodLevel(Math.round(hunger.getFloat("Current", hunger.getFloat("Base", 20F))));
         }
         CompoundTag saturation = BedrockLivingEntityReader.getAttribute(player, "minecraft:player.saturation");
         if (saturation != null) {
-            output.setFoodSaturation(saturation.getFloat("Current", 0F));
+            output.setFoodSaturation(saturation.getFloat("Current", saturation.getFloat("Base", 0F)));
         }
         CompoundTag exhaustion = BedrockLivingEntityReader.getAttribute(player, "minecraft:player.exhaustion");
         if (exhaustion != null) {
-            output.setFoodExhaustion(exhaustion.getFloat("Current", 0F));
+            output.setFoodExhaustion(exhaustion.getFloat("Current", exhaustion.getFloat("Base", 0F)));
         }
 
         // Experience (also in the attributes as minecraft:player.level and minecraft:player.experience)

@@ -77,6 +77,37 @@ public class BedrockPlayerReaderTests {
     }
 
     @Test
+    public void testCompactAttributesFrom1_26_60() {
+        // From 1.26.60 Bedrock leaves Current out when it equals Base, and leaves out attributes at their defaults
+        CompoundTag record = record();
+        record.put("Attributes", compounds(
+                compactAttribute("minecraft:health", 20F, 19.850468F),
+                compactAttribute("minecraft:player.hunger", 20F, null),
+                compactAttribute("minecraft:player.saturation", 5F, null),
+                compactAttribute("minecraft:player.exhaustion", 0F, 1.1458424F)
+        ));
+        ChunkerLevelPlayer player = read(UNMAPPED, record);
+
+        assertEquals(19.850468F, player.getHealth());
+        assertEquals(20, player.getFoodLevel());
+        assertEquals(5F, player.getFoodSaturation(), "A missing Current equals Base");
+        assertEquals(1.1458424F, player.getFoodExhaustion());
+        assertNull(player.getAbsorption(), "No absorption attribute, none is set");
+    }
+
+    private static CompoundTag compactAttribute(String name, float base, Float current) {
+        CompoundTag attribute = new CompoundTag();
+        attribute.put("Name", name);
+        attribute.put("Base", base);
+        if (current != null) {
+            attribute.put("Current", current.floatValue());
+        }
+        attribute.put("DefaultMin", 0F);
+        attribute.put("DefaultMax", base);
+        return attribute;
+    }
+
+    @Test
     public void testExperience() {
         CompoundTag record = record();
         record.put("PlayerLevel", 17);
