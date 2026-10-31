@@ -1,11 +1,14 @@
 package com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.handlers;
 
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
+import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.BedrockEntityUUIDs;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack;
 import com.hivemc.chunker.conversion.intermediate.column.entity.ChunkerEntityProperty;
 import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntity;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGossip;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGossipType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerTradeOffer;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerProfession;
@@ -89,12 +92,39 @@ public final class BedrockVillagerReader {
         }
 
         if (villager) {
+            readCuredDiscount(resolvers, input, entity);
             input.getOptionalValue("UniqueID", Long.class).ifPresent(uniqueId -> {
                 Map<ChunkerVillagerMemory, ChunkerGlobalPosition> memories = resolvers.getVillagerMemories(uniqueId);
                 if (!memories.isEmpty()) {
                     entity.put(ChunkerEntityProperty.VILLAGER_MEMORIES, new EnumMap<>(memories));
                 }
             });
+        }
+    }
+
+    /**
+     * Read the discount a villager gives for having been cured. Bedrock keeps it on the villager for every player
+     * (HighTierCuredDiscount and LowTierCuredDiscount, stored negative), Java keeps it as major_positive and
+     * minor_positive gossip about each player. The values are the same, so every player in the world gets both.
+     *
+     * @param resolvers the resolvers.
+     * @param input     the actor NBT.
+     * @param entity    the entity to fill.
+     */
+    private static void readCuredDiscount(BedrockResolvers resolvers, CompoundTag input, GenericEntity entity) {
+        int major = Math.min(ChunkerGossipType.MAJOR_POSITIVE.getMax(), -input.getInt("HighTierCuredDiscount", 0));
+        int minor = Math.min(ChunkerGossipType.MINOR_POSITIVE.getMax(), -input.getInt("LowTierCuredDiscount", 0));
+        if (major <= 0 && minor <= 0) return;
+
+        List<ChunkerGossip> gossips = new ArrayList<>();
+        for (long playerId : resolvers.getPlayerIds()) {
+            Optional<UUID> target = BedrockEntityUUIDs.referenceUUID(resolvers.converter(), playerId);
+            if (target.isEmpty()) continue;
+            if (major > 0) gossips.add(new ChunkerGossip(ChunkerGossipType.MAJOR_POSITIVE, target.get(), major));
+            if (minor > 0) gossips.add(new ChunkerGossip(ChunkerGossipType.MINOR_POSITIVE, target.get(), minor));
+        }
+        if (!gossips.isEmpty()) {
+            entity.put(ChunkerEntityProperty.VILLAGER_GOSSIPS, gossips);
         }
     }
 

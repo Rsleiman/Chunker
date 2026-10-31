@@ -27,12 +27,14 @@ import com.hivemc.chunker.mapping.identifier.Identifier;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.resolver.Resolver;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 
 /**
@@ -64,6 +66,7 @@ public class BedrockResolversBuilder {
     private IntFunction<ChunkerLodestoneData> lodestoneDataGetter;
     private ToIntFunction<ChunkerLodestoneData> lodestoneDataSetter;
     private LongFunction<Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> villagerMemoriesGetter;
+    private Supplier<Collection<Long>> playerIdsGetter;
     private PreTransformManager preTransformManager;
 
     /**
@@ -369,6 +372,15 @@ public class BedrockResolversBuilder {
             }
 
             @Override
+            public Collection<Long> getPlayerIds() {
+                if (playerIdsGetter != null) {
+                    Collection<Long> playerIds = playerIdsGetter.get();
+                    if (playerIds != null) return playerIds;
+                }
+                return Collections.emptyList();
+            }
+
+            @Override
             public Converter converter() {
                 return converter;
             }
@@ -498,6 +510,11 @@ public class BedrockResolversBuilder {
 
     public BedrockResolversBuilder villagerMemories(LongFunction<Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> villagerMemoriesGetter) {
         this.villagerMemoriesGetter = villagerMemoriesGetter;
+        return this;
+    }
+
+    public BedrockResolversBuilder playerIds(Supplier<Collection<Long>> playerIdsGetter) {
+        this.playerIdsGetter = playerIdsGetter;
         return this;
     }
 }

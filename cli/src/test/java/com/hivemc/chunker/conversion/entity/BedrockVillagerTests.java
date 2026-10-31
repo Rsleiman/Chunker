@@ -1,21 +1,28 @@
 package com.hivemc.chunker.conversion.entity;
 
+import com.hivemc.chunker.conversion.WorldConverter;
+import com.hivemc.chunker.conversion.bedrock.resolver.MockConverter;
 import com.hivemc.chunker.conversion.encoding.bedrock.BedrockDataVersion;
 import com.hivemc.chunker.conversion.encoding.bedrock.BedrockEncoders;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
+import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.BedrockEntityUUIDs;
+import com.hivemc.chunker.conversion.encoding.java.base.resolver.entity.handlers.JavaEntityNBT;
 import com.hivemc.chunker.conversion.encoding.bedrock.util.BedrockVillageParser;
 import com.hivemc.chunker.conversion.intermediate.column.entity.Entity;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.hivemc.chunker.conversion.entity.BedrockActors.*;
 import static com.hivemc.chunker.conversion.entity.EntityTestResolvers.*;
@@ -188,6 +195,44 @@ public class BedrockVillagerTests {
 
         // Reading the Java villager back gives the same memories
         assertEquals(entity, JAVA.entityResolver().to(java).orElseThrow());
+    }
+
+    @Test
+    public void testCuredDiscountBecomesGossipForEveryPlayer() {
+        // A cured villager as BDS 1.26.61 saves it, in a world with a mapped and an unmapped player
+        long mapped = -4294967295L;
+        long unmapped = -17179869183L;
+        UUID account = UUID.fromString("00000000-0000-4000-8000-000000000001");
+        WorldConverter converter = new MockConverter(new ChunkerLevel(null, null, Collections.emptyList(), null, Collections.emptyList()));
+        converter.setBedrockPlayerUUIDs(Map.of(mapped, account));
+        BedrockResolvers resolvers = BedrockEncoders.getNearestEncoder(BedrockDataVersion.V1_26_50)
+                .readerConstructor()
+                .construct(null, BedrockDataVersion.V1_26_50.getVersion(), converter)
+                .buildResolvers(converter)
+                .playerIds(() -> List.of(mapped, unmapped))
+                .build();
+        CompoundTag bedrock = villager(45, 1, 0, 4, 0);
+        bedrock.put("HighTierCuredDiscount", -20);
+        bedrock.put("LowTierCuredDiscount", -25);
+        bedrock.put("NearbyCuredDiscount", 0);
+        Entity entity = resolvers.entityResolver().to(bedrock).orElseThrow();
+        CompoundTag java = writeJava(entity);
+
+        Map<String, Integer> gossips = new HashMap<>();
+        for (CompoundTag gossip : java.getList("Gossips", CompoundTag.class)) {
+            gossips.put(JavaEntityNBT.fromIntArray(gossip.getIntArray("Target")) + " " + gossip.getString("Type"), gossip.getInt("Value"));
+        }
+        UUID derived = BedrockEntityUUIDs.toUUID(unmapped);
+        assertEquals(Map.of(
+                account + " major_positive", 20,
+                account + " minor_positive", 25,
+                derived + " major_positive", 20,
+                derived + " minor_positive", 25
+        ), gossips, "Java's gossip for curing, the same values Bedrock keeps for every player");
+        assertEquals(entity, JAVA.entityResolver().to(java).orElseThrow());
+
+        // A villager which was never cured has no gossip
+        assertFalse(resolvers.entityResolver().to(villager(46, 1, 0, 4, 0)).map(EntityTestResolvers::writeJava).orElseThrow().contains("Gossips"));
     }
 
     private static CompoundTag poi(int type, String name, int x, int y, int z, boolean skip) {

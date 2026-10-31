@@ -7,6 +7,7 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.Chunker
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerBlockPosition;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerEquipmentSlot;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGossip;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerMobEffect;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerTradeOffer;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
@@ -399,6 +400,14 @@ public class ChunkerEntityProperty<V> extends Property<Entity, V> {
      */
     public static final ChunkerEntityProperty<Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> VILLAGER_MEMORIES = new ChunkerEntityProperty<>(
             "villager_memories",
+            new TypeToken<>() {
+            }
+    );
+    /**
+     * The gossip a villager keeps about players, which sets their prices (e.g. the discount for curing it).
+     */
+    public static final ChunkerEntityProperty<List<ChunkerGossip>> VILLAGER_GOSSIPS = new ChunkerEntityProperty<>(
+            "villager_gossips",
             new TypeToken<>() {
             }
     );

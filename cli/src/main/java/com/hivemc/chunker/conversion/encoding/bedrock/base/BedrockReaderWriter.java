@@ -23,6 +23,7 @@ import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlob
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -63,6 +64,16 @@ public interface BedrockReaderWriter extends LevelReaderWriter {
     }
 
     /**
+     * Get the UniqueIDs of every player record in the world.
+     *
+     * @return the UniqueIDs or null if none are known.
+     */
+    @Nullable
+    default Collection<Long> getPlayerIds() {
+        return null;
+    }
+
+    /**
      * Build the resolvers which should be used for this version.
      *
      * @param converter the instance of the converter.
@@ -89,6 +100,7 @@ public interface BedrockReaderWriter extends LevelReaderWriter {
                 .entityResolverConstructor((resolvers) -> new BedrockEntityResolver(version, resolvers))
                 .preTransformManager(isReader() ? new BedrockReaderPreTransformManager(version) : new BedrockWriterPreTransformManager(version))
                 .lodestoneData(this::getLodestoneData, this::getOrCreateLodestoneData)
-                .villagerMemories(this::getVillagerMemories);
+                .villagerMemories(this::getVillagerMemories)
+                .playerIds(this::getPlayerIds);
     }
 }

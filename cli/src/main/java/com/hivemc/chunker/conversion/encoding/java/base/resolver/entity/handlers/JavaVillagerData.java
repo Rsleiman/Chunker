@@ -5,6 +5,8 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.Chunker
 import com.hivemc.chunker.conversion.intermediate.column.entity.ChunkerEntityProperty;
 import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntity;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGossip;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGossipType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerTradeOffer;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerProfession;
@@ -90,6 +92,19 @@ public final class JavaVillagerData {
             brain.put("memories", memoriesTag);
             output.put("Brain", brain);
         }
+
+        List<ChunkerGossip> gossips = entity.get(ChunkerEntityProperty.VILLAGER_GOSSIPS);
+        if (gossips != null && !gossips.isEmpty()) {
+            ListTag<CompoundTag, Map<String, Tag<?>>> gossipsTag = new ListTag<>(TagType.COMPOUND, gossips.size());
+            for (ChunkerGossip gossip : gossips) {
+                CompoundTag gossipTag = new CompoundTag();
+                gossipTag.put("Target", JavaEntityNBT.toIntArray(gossip.target()));
+                gossipTag.put("Type", gossip.type().getName());
+                gossipTag.put("Value", gossip.value());
+                gossipsTag.add(gossipTag);
+            }
+            output.put("Gossips", gossipsTag);
+        }
     }
 
     /**
@@ -170,6 +185,21 @@ public final class JavaVillagerData {
             }
             if (!memories.isEmpty()) {
                 entity.put(ChunkerEntityProperty.VILLAGER_MEMORIES, memories);
+            }
+        }
+
+        ListTag<CompoundTag, Map<String, Tag<?>>> gossipsTag = input.getList("Gossips", CompoundTag.class, null);
+        if (gossipsTag != null) {
+            List<ChunkerGossip> gossips = new ArrayList<>();
+            for (CompoundTag gossipTag : gossipsTag) {
+                UUID target = JavaEntityNBT.fromIntArray(gossipTag.getIntArray("Target", null));
+                ChunkerGossipType type = parseEnum(ChunkerGossipType.class, gossipTag.getString("Type", ""), null);
+                int value = gossipTag.getInt("Value", 0);
+                if (target == null || type == null || value <= 0) continue;
+                gossips.add(new ChunkerGossip(type, target, value));
+            }
+            if (!gossips.isEmpty()) {
+                entity.put(ChunkerEntityProperty.VILLAGER_GOSSIPS, gossips);
             }
         }
     }

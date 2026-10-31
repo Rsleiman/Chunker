@@ -26,6 +26,7 @@ import com.hivemc.chunker.mapping.identifier.Identifier;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.resolver.Resolver;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 
@@ -296,6 +297,13 @@ public interface BedrockResolvers {
      * @return the memories of the villager, empty if none were recorded or the world wasn't read.
      */
     Map<ChunkerVillagerMemory, ChunkerGlobalPosition> getVillagerMemories(long villagerId);
+
+    /**
+     * Get the UniqueIDs of every player record in the world.
+     *
+     * @return the UniqueIDs, empty if the world wasn't read.
+     */
+    Collection<Long> getPlayerIds();
 
     /**
      * Get the converter instance.

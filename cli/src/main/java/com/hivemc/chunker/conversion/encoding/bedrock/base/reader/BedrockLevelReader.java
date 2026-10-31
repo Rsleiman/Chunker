@@ -66,6 +66,7 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
     protected final Converter converter;
     protected final BedrockResolvers resolvers;
     protected final Map<Long, Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> villagerMemories = new ConcurrentHashMap<>();
+    protected final Set<Long> playerIds = ConcurrentHashMap.newKeySet();
     protected final Map<Dimension, Set<ChunkCoordPair>> entitiesOnlyColumns = new ConcurrentHashMap<>();
     protected DB database;
 
@@ -405,6 +406,7 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
                 if (!LevelDBKey.startsWith(entry.getKey(), LevelDBKey.SERVER_PLAYER_PREFIX)) break;
                 try {
                     CompoundTag player = Objects.requireNonNull(Tag.readBedrockNBT(entry.getValue()));
+                    player.getOptionalValue("UniqueID", Long.class).ifPresent(playerIds::add);
                     players.add(BedrockPlayerReader.read(resolvers, converter, player));
                 } catch (Exception e) {
                     converter.logNonFatalException(new Exception("Failed to parse a player record", e));
@@ -429,6 +431,7 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
         try {
             // Parse the NBT
             CompoundTag player = Objects.requireNonNull(Tag.readBedrockNBT(bytes));
+            player.getOptionalValue("UniqueID", Long.class).ifPresent(playerIds::add);
             ChunkerLevelPlayer localPlayer = BedrockPlayerReader.read(resolvers, converter, player);
             output.setPlayer(localPlayer);
             return localPlayer;
@@ -701,6 +704,11 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
     @Override
     public @Nullable Map<ChunkerVillagerMemory, ChunkerGlobalPosition> getVillagerMemories(long villagerId) {
         return villagerMemories.get(villagerId);
+    }
+
+    @Override
+    public Collection<Long> getPlayerIds() {
+        return playerIds;
     }
 
     /**
