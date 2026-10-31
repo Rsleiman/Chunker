@@ -34,11 +34,13 @@ import static com.hivemc.chunker.conversion.entity.BedrockActors.actor;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests that entities in Bedrock columns without terrain are written to Java without writing terrain for them.
+ * Tests that entities in Bedrock columns without terrain are written to Java without writing terrain for them, and that
+ * block entity records in such columns don't make Chunker write terrain.
  */
 public class EntitiesOnlyColumnTests {
     private static final ChunkCoordPair OVERWORLD_COLUMN = new ChunkCoordPair(1000, 1000);
     private static final ChunkCoordPair NETHER_COLUMN = new ChunkCoordPair(-1000, 1000);
+    private static final ChunkCoordPair BLOCK_ENTITY_COLUMN = new ChunkCoordPair(2000, 2000);
 
     @Test
     public void testEntitiesWithoutTerrainAreKept() throws Exception {
@@ -81,6 +83,44 @@ public class EntitiesOnlyColumnTests {
                 // No terrain is written, so Java generates it
                 assertTrue(find(output, "region", regionName).isEmpty(), "No terrain is written for " + column);
             }
+        } finally {
+            WorldConversionIntegrationTests.remove(input);
+            WorldConversionIntegrationTests.remove(output);
+        }
+    }
+
+    @Test
+    public void testBlockEntitiesWithoutTerrainAreNotWrittenAsTerrain() throws Exception {
+        Path input = WorldConversionIntegrationTests.unzip(Resources.getResource("integration/worlds/BEDROCK_R20_80.zip"));
+        Path output = WorldConversionIntegrationTests.tempFolder();
+        try {
+            // A flower pot record in a column with no terrain, as Bedrock keeps around trial chambers
+            try (DB database = openDatabase(input)) {
+                assertNull(database.get(LevelDBKey.key(Dimension.OVERWORLD, BLOCK_ENTITY_COLUMN, LevelDBChunkType.VERSION)), "The column has no terrain");
+                CompoundTag plant = new CompoundTag();
+                plant.put("name", "minecraft:deadbush");
+                plant.put("states", new CompoundTag());
+                CompoundTag flowerPot = new CompoundTag();
+                flowerPot.put("id", "FlowerPot");
+                flowerPot.put("x", BLOCK_ENTITY_COLUMN.chunkX() * 16 + 5);
+                flowerPot.put("y", -27);
+                flowerPot.put("z", BLOCK_ENTITY_COLUMN.chunkZ() * 16 + 4);
+                flowerPot.put("PlantBlock", plant);
+                database.put(LevelDBKey.key(Dimension.OVERWORLD, BLOCK_ENTITY_COLUMN, LevelDBChunkType.BLOCK_ENTITY), Tag.writeBedrockNBT(flowerPot));
+            }
+
+            WorldConverter converter = new WorldConverter(UUID.randomUUID()) {
+                @Override
+                public void logMissingMapping(MissingMappingType type, String identifier) {
+                    // Don't log missing mappings for our tests
+                }
+            };
+            new WorldConversionIntegrationTests().convertWorld(converter, input, output, EncodingType.JAVA, JavaDataVersion.V26_3.getVersion());
+            assertFalse(converter.isExceptions());
+
+            // An empty column would be a hole in Java, so no terrain is written and Java generates it
+            String regionName = "r." + BLOCK_ENTITY_COLUMN.regionX() + "." + BLOCK_ENTITY_COLUMN.regionZ() + ".mca";
+            assertTrue(find(output, "region", regionName).isEmpty(), "No terrain is written for " + BLOCK_ENTITY_COLUMN);
         } finally {
             WorldConversionIntegrationTests.remove(input);
             WorldConversionIntegrationTests.remove(output);

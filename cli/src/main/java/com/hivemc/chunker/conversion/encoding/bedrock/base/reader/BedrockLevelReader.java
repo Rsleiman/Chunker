@@ -140,6 +140,9 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
             Map<Dimension, Map<RegionCoordPair, Set<ChunkCoordPair>>> dimensionLookup = new HashMap<>();
             // Columns with a list of entities (digp), which may have no terrain
             Map<Dimension, Set<ChunkCoordPair>> entityColumns = new HashMap<>();
+            // Columns with block entities or entities stored in the column, and columns with a version
+            Map<Dimension, Set<ChunkCoordPair>> objectColumns = new HashMap<>();
+            Map<Dimension, Set<ChunkCoordPair>> versionColumns = new HashMap<>();
             boolean collectEntityColumns = converter.shouldProcessEntities();
             // Scan the database for valid chunks
             DimensionRegistry dimensionRegistry = converter.getDimensionRegistry();
@@ -155,7 +158,8 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
                         }
                         continue;
                     }
-                    if (!LevelDBKey.isColumnKey(key)) continue;
+                    boolean columnKey = LevelDBKey.isColumnKey(key);
+                    if (!columnKey && !LevelDBKey.isColumnVersionKey(key)) continue;
 
                     int x = LevelDBKey.readLittleEndianInt(key, 0);
                     int z = LevelDBKey.readLittleEndianInt(key, 4);
@@ -172,6 +176,13 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
                         }
                     }
 
+                    // Block entities, entities and versions alone don't make a column with terrain
+                    if (!columnKey || LevelDBKey.isColumnObjectKey(key)) {
+                        (columnKey ? objectColumns : versionColumns).computeIfAbsent(dimension, (ignored) -> new ObjectOpenHashSet<>())
+                                .add(new ChunkCoordPair(x, z));
+                        continue;
+                    }
+
                     // Create the pairs used for adding to the lookup
                     RegionCoordPair regionCoordPair = new RegionCoordPair(x >> 5, z >> 5);
 
@@ -179,6 +190,24 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
                     Map<RegionCoordPair, Set<ChunkCoordPair>> regionLookup = dimensionLookup.computeIfAbsent(dimension, (ignored) -> new Object2ObjectOpenHashMap<>());
                     BedrockChunkCoordinateSet columns = (BedrockChunkCoordinateSet) regionLookup.computeIfAbsent(regionCoordPair, BedrockChunkCoordinateSet::new);
                     columns.add(x, z);
+                }
+            }
+
+            // Bedrock keeps block entity records (e.g. the trial spawners and vaults of a trial chamber) for columns it
+            // has never generated, which have no terrain and no version. Such a column isn't written as terrain, as
+            // an empty column would be a hole in the output; the output generates it instead. Its entities are read.
+            for (Map.Entry<Dimension, Set<ChunkCoordPair>> entry : objectColumns.entrySet()) {
+                Map<RegionCoordPair, Set<ChunkCoordPair>> regionLookup = dimensionLookup.computeIfAbsent(entry.getKey(), (ignored) -> new Object2ObjectOpenHashMap<>());
+                Set<ChunkCoordPair> versions = versionColumns.getOrDefault(entry.getKey(), Collections.emptySet());
+                for (ChunkCoordPair position : entry.getValue()) {
+                    Set<ChunkCoordPair> columns = regionLookup.get(position.getRegion());
+                    if (columns != null && columns.contains(position)) continue;
+
+                    if (versions.contains(position)) {
+                        regionLookup.computeIfAbsent(position.getRegion(), BedrockChunkCoordinateSet::new).add(position);
+                    } else if (collectEntityColumns) {
+                        entityColumns.computeIfAbsent(entry.getKey(), (ignored) -> new ObjectOpenHashSet<>()).add(position);
+                    }
                 }
             }
 

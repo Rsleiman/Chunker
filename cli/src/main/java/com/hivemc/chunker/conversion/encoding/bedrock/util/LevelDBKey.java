@@ -52,6 +52,42 @@ public class LevelDBKey {
     }
 
     /**
+     * Check whether a column key holds only block entities or entities (stored in the column), which Bedrock also
+     * saves for columns it hasn't generated yet.
+     *
+     * @param key a database key for which {@link #isColumnKey(byte[])} is true.
+     * @return true if the key is a column's block entities or entities.
+     */
+    public static boolean isColumnObjectKey(byte[] key) {
+        int length = key.length;
+        if (length != 9 && length != 13) return false;
+        byte type = key[length - 1];
+        return type == LevelDBChunkType.BLOCK_ENTITY.getId() || type == LevelDBChunkType.ENTITY.getId();
+    }
+
+    /**
+     * Check whether a database key marks a column as generated without being read as part of it (the version, or the
+     * legacy terrain and version).
+     *
+     * @param key the database key.
+     * @return true if the key is a column's version or legacy terrain.
+     */
+    public static boolean isColumnVersionKey(byte[] key) {
+        int length = key.length;
+        if (length != 9 && length != 13) return false;
+        if (LevelDBKey.startsWith(key, LevelDBKey.MAP_PREFIX)
+                || LevelDBKey.startsWith(key, LevelDBKey.ACTOR_PREFIX)
+                || LevelDBKey.startsWith(key, LevelDBKey.DIGP_PREFIX)
+                || Arrays.equals(key, LevelDBKey.LOCAL_PLAYER)) {
+            return false;
+        }
+        byte type = key[length - 1];
+        return type == LevelDBChunkType.VERSION.getId()
+                || type == LevelDBChunkType.LEGACY_VERSION.getId()
+                || type == LevelDBChunkType.LEGACY_TERRAIN.getId();
+    }
+
+    /**
      * Check whether a database key is the list of entities of a column (digp + X + Z, with an optional dimension).
      *
      * @param key the database key.
