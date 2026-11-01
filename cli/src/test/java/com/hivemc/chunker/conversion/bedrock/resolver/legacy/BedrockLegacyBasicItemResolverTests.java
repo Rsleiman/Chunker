@@ -59,6 +59,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class BedrockLegacyBasicItemResolverTests {
     public static final Map<ChunkerItemProperty<?>, Object> DEFAULTS = Map.of(ChunkerItemProperty.AMOUNT, 1);
     public static final Set<ChunkerItemProperty<?>> SKIPPED_PROPERTIES = Set.of(
+            ChunkerItemProperty.CHARGED_PROJECTILES, // Bedrock keeps one, tested in BedrockBlockEntityDataTests
+            ChunkerItemProperty.BUCKET_ENTITY, // Only written to Java, tested in BedrockBlockEntityDataTests
             ChunkerItemProperty.HORN_INSTRUMENT, // Inferred from item ID
             ChunkerItemProperty.POTION, // Inferred from item ID
             ChunkerItemProperty.STEW_EFFECT, // Inferred from item ID

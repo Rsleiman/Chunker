@@ -103,6 +103,21 @@ public class ChunkerItemProperty<V> extends Property<ChunkerItemStack, V> implem
             }
     );
     /**
+     * The projectiles a crossbow is loaded with.
+     */
+    public static final ChunkerItemProperty<List<ChunkerItemStack>> CHARGED_PROJECTILES = new ChunkerItemProperty<>(
+            "charged_projectiles",
+            new TypeToken<>() {
+            }
+    );
+    /**
+     * The mob in a bucket (axolotl, fish or tadpole), read as the whole entity.
+     */
+    public static final ChunkerItemProperty<Entity> BUCKET_ENTITY = new ChunkerItemProperty<>(
+            "bucket_entity",
+            Entity.class
+    );
+    /**
      * The entity attached to the item (used for paintings on Java).
      */
     public static final ChunkerItemProperty<Entity> ENTITY = new ChunkerItemProperty<>(

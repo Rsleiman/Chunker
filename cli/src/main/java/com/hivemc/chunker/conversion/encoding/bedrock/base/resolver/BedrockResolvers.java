@@ -299,6 +299,14 @@ public interface BedrockResolvers {
     Map<ChunkerVillagerMemory, ChunkerGlobalPosition> getVillagerMemories(long villagerId);
 
     /**
+     * Find the index of a saved map in the level by its Bedrock map ID.
+     *
+     * @param mapId the Bedrock map ID (map_uuid).
+     * @return the index of the map or empty if the map isn't known.
+     */
+    Optional<Integer> findMapIndex(long mapId);
+
+    /**
      * Get the UniqueIDs of every player record in the world.
      *
      * @return the UniqueIDs, empty if the world wasn't read.

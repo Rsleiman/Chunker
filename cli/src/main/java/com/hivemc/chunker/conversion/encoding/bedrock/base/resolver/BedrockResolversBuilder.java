@@ -66,6 +66,7 @@ public class BedrockResolversBuilder {
     private IntFunction<ChunkerLodestoneData> lodestoneDataGetter;
     private ToIntFunction<ChunkerLodestoneData> lodestoneDataSetter;
     private LongFunction<Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> villagerMemoriesGetter;
+    private LongFunction<Optional<Integer>> mapIndexGetter;
     private Supplier<Collection<Long>> playerIdsGetter;
     private PreTransformManager preTransformManager;
 
@@ -372,6 +373,15 @@ public class BedrockResolversBuilder {
             }
 
             @Override
+            public Optional<Integer> findMapIndex(long mapId) {
+                if (mapIndexGetter != null) {
+                    Optional<Integer> index = mapIndexGetter.apply(mapId);
+                    if (index.isPresent()) return index;
+                }
+                return converter().level().flatMap(level -> level.findMapIndexByOriginalID(mapId));
+            }
+
+            @Override
             public Collection<Long> getPlayerIds() {
                 if (playerIdsGetter != null) {
                     Collection<Long> playerIds = playerIdsGetter.get();
@@ -510,6 +520,11 @@ public class BedrockResolversBuilder {
 
     public BedrockResolversBuilder villagerMemories(LongFunction<Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> villagerMemoriesGetter) {
         this.villagerMemoriesGetter = villagerMemoriesGetter;
+        return this;
+    }
+
+    public BedrockResolversBuilder mapIndex(LongFunction<Optional<Integer>> mapIndexGetter) {
+        this.mapIndexGetter = mapIndexGetter;
         return this;
     }
 

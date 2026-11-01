@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.hivemc.chunker.conversion.encoding.base.Converter;
 import com.hivemc.chunker.conversion.encoding.base.resolver.itemstack.ItemStackResolver;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
+import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.blockentity.handlers.BedrockBannerBlockEntityHandler;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.identifier.BedrockBlockCompoundTag;
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.BlockEntity;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
@@ -19,6 +20,7 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.firewor
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.ChunkerTrim;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.ChunkerTrimMaterial;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.ChunkerTrimPattern;
+import com.hivemc.chunker.conversion.intermediate.column.entity.Entity;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
 import com.hivemc.chunker.conversion.intermediate.level.map.ChunkerMap;
@@ -292,11 +294,7 @@ public class BedrockItemStackResolver extends ItemStackResolver<BedrockResolvers
 
                 // Check if map_uuid is present
                 Optional<Long> uuid = tag.getOptionalValue("map_uuid", Long.class);
-                if (uuid.isPresent() && resolvers.converter().level().isPresent()) {
-                    ChunkerLevel level = resolvers.converter().level().get();
-                    return level.findMapIndexByOriginalID(uuid.get());
-                }
-                return Optional.empty();
+                return uuid.flatMap(resolvers::findMapIndex);
             }
 
             @Override
@@ -680,6 +678,46 @@ public class BedrockItemStackResolver extends ItemStackResolver<BedrockResolvers
             }
         });
 
+        // Crossbows hold one charged projectile
+        registerHandler(ChunkerItemProperty.CHARGED_PROJECTILES, new PropertyHandler<>() {
+            @Override
+            public Optional<List<ChunkerItemStack>> read(@NotNull CompoundTag value) {
+                Optional<CompoundTag> chargedItem = value.getOptional("tag", CompoundTag.class)
+                        .flatMap(tag -> tag.getOptional("chargedItem", CompoundTag.class));
+                if (chargedItem.isEmpty() || chargedItem.get().getByte("Count", (byte) 0) <= 0) return Optional.empty();
+
+                ChunkerItemStack item = resolvers.readItem(chargedItem.get());
+                return item.getIdentifier().isAir() ? Optional.empty() : Optional.of(List.of(item));
+            }
+
+            @Override
+            public void write(@NotNull CompoundTag value, @NotNull List<ChunkerItemStack> projectiles) {
+                if (projectiles.isEmpty()) return;
+                resolvers.writeItem(projectiles.get(0)).ifPresent(item -> value.getOrCreateCompound("tag").put("chargedItem", item));
+            }
+        });
+
+        // Mob buckets keep the whole actor in the tag
+        registerContextualHandler(ChunkerItemProperty.BUCKET_ENTITY, new PropertyHandler<>() {
+            @Override
+            public Optional<Entity> read(@NotNull Pair<ChunkerItemStack, CompoundTag> state) {
+                CompoundTag tag = state.value().getCompound("tag");
+                if (tag == null || !tag.contains("identifier")) return Optional.empty();
+                if (!state.value().getString("Name", "").endsWith("_bucket")) return Optional.empty();
+                return resolvers.entityResolver().to(tag);
+            }
+
+            @Override
+            public void write(@NotNull Pair<ChunkerItemStack, CompoundTag> state, @NotNull Entity value) {
+                resolvers.entityResolver().from(value).ifPresent(entityTag -> {
+                    CompoundTag itemTag = state.value().getOrCreateCompound("tag");
+                    for (Map.Entry<String, Tag<?>> entry : entityTag) {
+                        itemTag.put(entry.getKey(), entry.getValue());
+                    }
+                });
+            }
+        });
+
         // Block Entities
         registerContextualHandler(ChunkerItemProperty.BLOCK_ENTITY, new PropertyHandler<>() {
             @Override
@@ -810,7 +848,14 @@ public class BedrockItemStackResolver extends ItemStackResolver<BedrockResolvers
             if (name.isEmpty()) {
                 name = "minecraft:air"; // In local player inventory air can be written as empty string
             }
-            identifier = Identifier.fromData(name, OptionalInt.of(input.getShort("Damage", (short) 0)));
+            short data = input.getShort("Damage", (short) 0);
+
+            // The ominous banner is white whatever its data value
+            CompoundTag tag = input.getCompound("tag");
+            if (name.equals("minecraft:banner") && tag != null && tag.getInt("Type", 0) == BedrockBannerBlockEntityHandler.OMINOUS_TYPE) {
+                data = (short) ChunkerDyeColor.WHITE.getReversedID();
+            }
+            identifier = Identifier.fromData(name, OptionalInt.of(data));
         } else if (input.size() == 0) {
             identifier = new Identifier("minecraft:air"); // Empty armor / offhand slots are written as an empty compound
         } else {

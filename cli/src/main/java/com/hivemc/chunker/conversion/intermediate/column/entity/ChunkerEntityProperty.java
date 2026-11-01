@@ -2,9 +2,11 @@ package com.hivemc.chunker.conversion.intermediate.column.entity;
 
 import com.google.common.reflect.TypeToken;
 import com.google.gson.JsonElement;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerBlockPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerEntityFlag;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerEquipmentSlot;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGossip;
@@ -396,7 +398,7 @@ public class ChunkerEntityProperty<V> extends Property<Entity, V> {
             }
     );
     /**
-     * The points of interest a villager remembers (bed, bell, workstation).
+     * The points of interest a villager remembers (bed, bell, workstation), or the bastion a piglin brute guards.
      */
     public static final ChunkerEntityProperty<Map<ChunkerVillagerMemory, ChunkerGlobalPosition>> VILLAGER_MEMORIES = new ChunkerEntityProperty<>(
             "villager_memories",
@@ -417,6 +419,28 @@ public class ChunkerEntityProperty<V> extends Property<Entity, V> {
     public static final ChunkerEntityProperty<Integer> SIZE = new ChunkerEntityProperty<>(
             "size",
             Integer.class
+    );
+    /**
+     * Boolean states of specific mobs (e.g. a powered creeper or a patrol captain).
+     */
+    public static final ChunkerEntityProperty<Map<ChunkerEntityFlag, Boolean>> FLAGS = new ChunkerEntityProperty<>(
+            "flags",
+            new TypeToken<>() {
+            }
+    );
+    /**
+     * The ticks until a chicken lays an egg or an armadillo drops a scute.
+     */
+    public static final ChunkerEntityProperty<Integer> ITEM_DROP_TIME = new ChunkerEntityProperty<>(
+            "item_drop_time",
+            Integer.class
+    );
+    /**
+     * The block an enderman carries or a falling block is made of.
+     */
+    public static final ChunkerEntityProperty<ChunkerBlockIdentifier> BLOCK_STATE = new ChunkerEntityProperty<>(
+            "block_state",
+            ChunkerBlockIdentifier.class
     );
     /**
      * The item stack of a dropped item.

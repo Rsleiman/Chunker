@@ -3,6 +3,7 @@ package com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.hand
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.blockentity.handlers.BedrockRandomizableContainerBlockEntityHandler;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.BedrockEntityUUIDs;
+import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.identifier.BedrockBlockCompoundTag;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack;
 import com.hivemc.chunker.conversion.intermediate.column.entity.ChunkerEntityProperty;
 import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntity;
@@ -16,7 +17,7 @@ import com.hivemc.chunker.nbt.tags.primitive.IntTag;
 import java.util.List;
 
 /**
- * Reads the data of Bedrock actors which aren't living (dropped items, experience orbs, arrows, minecarts and boats)
+ * Reads the data of Bedrock actors which aren't living (dropped items, experience orbs, arrows, falling blocks, minecarts and boats)
  * into a GenericEntity.
  */
 public final class BedrockNonLivingEntityReader {
@@ -48,11 +49,20 @@ public final class BedrockNonLivingEntityReader {
                 entity.put(ChunkerEntityProperty.ITEM, item);
             }
             readAgeAndHealth(input, entity);
+
+            // The player who dropped the item
+            BedrockEntityUUIDs.referenceUUID(resolvers.converter(), input.getLong("OwnerID", -1)).ifPresent(owner -> entity.put(ChunkerEntityProperty.OWNER, owner));
         } else if (type == ChunkerVanillaEntityType.EXPERIENCE_ORB) {
             entity.put(ChunkerEntityProperty.EXPERIENCE_VALUE, input.getOptionalValue("experience value", Number.class).map(Number::intValue).orElse(1));
             readAgeAndHealth(input, entity);
         } else if (type == ChunkerVanillaEntityType.ARROW) {
             readArrow(resolvers, input, entity);
+        } else if (type == ChunkerVanillaEntityType.FALLING_BLOCK) {
+            CompoundTag block = input.getCompound("FallingBlock");
+            if (block != null) {
+                entity.put(ChunkerEntityProperty.BLOCK_STATE, resolvers.readBlock(new BedrockBlockCompoundTag(block, false)));
+            }
+            input.getOptionalValue("Time", Number.class).ifPresent(time -> entity.put(ChunkerEntityProperty.AGE, time.intValue()));
         }
 
         if (GenericEntityTypes.CONTAINERS.contains(type)) {

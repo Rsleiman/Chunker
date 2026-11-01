@@ -1,6 +1,7 @@
 package com.hivemc.chunker.conversion.encoding.java.base.resolver.entity.handlers;
 
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.JavaResolvers;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.potion.ChunkerEffectType;
@@ -8,6 +9,7 @@ import com.hivemc.chunker.conversion.intermediate.column.entity.ChunkerEntityPro
 import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntity;
 import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntityTypes;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerBlockPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerEntityFlag;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerEquipmentSlot;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerMobEffect;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
@@ -105,8 +107,11 @@ public final class JavaLivingEntityData {
         if (GenericEntityTypes.HORSES.contains(type)) {
             writeBoolean(output, "Tame", entity.get(ChunkerEntityProperty.TAMED));
         }
-        if (GenericEntityTypes.SITTING_PETS.contains(type)) {
+        if (GenericEntityTypes.SITTING_PETS.contains(type) || type == ChunkerVanillaEntityType.FOX) {
             writeBoolean(output, "Sitting", entity.get(ChunkerEntityProperty.SITTING));
+        } else if (isCamel(type) && Boolean.TRUE.equals(entity.get(ChunkerEntityProperty.SITTING))) {
+            // A negative pose change tick is a camel which sat down long ago
+            output.put("LastPoseTick", -1L);
         }
 
         writeTypeSpecific(resolvers, output, entity, type);
@@ -117,6 +122,8 @@ public final class JavaLivingEntityData {
         if (variant != null) {
             if (type == ChunkerVanillaEntityType.FOX || type == ChunkerVanillaEntityType.MOOSHROOM) {
                 output.put("Type", variant);
+            } else if (type == ChunkerVanillaEntityType.SALMON) {
+                output.put("type", variant);
             } else {
                 output.put("variant", "minecraft:" + variant);
             }
@@ -127,7 +134,27 @@ public final class JavaLivingEntityData {
         }
         Integer variantId = entity.get(ChunkerEntityProperty.VARIANT_ID);
         if (variantId != null) {
-            output.put("Variant", variantId.intValue());
+            output.put(type == ChunkerVanillaEntityType.RABBIT ? "RabbitType" : "Variant", variantId.intValue());
+        }
+        Map<ChunkerEntityFlag, Boolean> flags = entity.get(ChunkerEntityProperty.FLAGS);
+        if (flags != null) {
+            for (Map.Entry<ChunkerEntityFlag, Boolean> flag : flags.entrySet()) {
+                if (flag.getKey().appliesTo(type)) {
+                    writeBoolean(output, flag.getKey().getJavaKey(), flag.getValue());
+                }
+            }
+        }
+        Integer itemDropTime = entity.get(ChunkerEntityProperty.ITEM_DROP_TIME);
+        if (itemDropTime != null) {
+            if (type == ChunkerVanillaEntityType.CHICKEN) {
+                output.put("EggLayTime", itemDropTime.intValue());
+            } else if (type == ChunkerVanillaEntityType.ARMADILLO) {
+                output.put("scute_time", itemDropTime.intValue());
+            }
+        }
+        ChunkerBlockIdentifier blockState = entity.get(ChunkerEntityProperty.BLOCK_STATE);
+        if (blockState != null && type == ChunkerVanillaEntityType.ENDERMAN) {
+            output.put("carriedBlockState", resolvers.writeBlock(blockState));
         }
         ChunkerDyeColor color = entity.get(ChunkerEntityProperty.COLOR);
         if (color != null) {
@@ -191,7 +218,13 @@ public final class JavaLivingEntityData {
 
         if (isVillager(type)) {
             JavaVillagerData.write(resolvers, output, entity);
+        } else if (type == ChunkerVanillaEntityType.PIGLIN_BRUTE) {
+            JavaVillagerData.writeMemories(output, entity);
         }
+    }
+
+    private static boolean isCamel(ChunkerEntityType type) {
+        return type == ChunkerVanillaEntityType.CAMEL || type == ChunkerVanillaEntityType.CAMEL_HUSK;
     }
 
     private static boolean isVillager(ChunkerEntityType type) {
@@ -297,6 +330,14 @@ public final class JavaLivingEntityData {
         } else if (GenericEntityTypes.SITTING_PETS.contains(type)) {
             entity.put(ChunkerEntityProperty.TAMED, owner != null);
             readBoolean(input, "Sitting", entity, ChunkerEntityProperty.SITTING);
+        } else if (type == ChunkerVanillaEntityType.FOX) {
+            readBoolean(input, "Sitting", entity, ChunkerEntityProperty.SITTING);
+        } else if (type == ChunkerVanillaEntityType.NAUTILUS || type == ChunkerVanillaEntityType.ZOMBIE_NAUTILUS) {
+            entity.put(ChunkerEntityProperty.TAMED, owner != null);
+        }
+        if (isCamel(type)) {
+            input.getOptionalValue("LastPoseTick", Long.class).filter(value -> value < 0)
+                    .ifPresent(value -> entity.put(ChunkerEntityProperty.SITTING, true));
         }
 
         readTypeSpecific(resolvers, input, entity, type);
@@ -305,13 +346,35 @@ public final class JavaLivingEntityData {
     private static void readTypeSpecific(JavaResolvers resolvers, CompoundTag input, GenericEntity entity, ChunkerEntityType type) {
         if (type == ChunkerVanillaEntityType.FOX || type == ChunkerVanillaEntityType.MOOSHROOM) {
             input.getOptionalValue("Type", String.class).ifPresent(value -> entity.put(ChunkerEntityProperty.VARIANT, value));
+        } else if (type == ChunkerVanillaEntityType.SALMON) {
+            input.getOptionalValue("type", String.class).ifPresent(value -> entity.put(ChunkerEntityProperty.VARIANT, value));
         } else {
             input.getOptionalValue("variant", String.class)
                     .ifPresent(value -> entity.put(ChunkerEntityProperty.VARIANT, stripNamespace(value)));
         }
         input.getOptionalValue("sound_variant", String.class)
                 .ifPresent(value -> entity.put(ChunkerEntityProperty.SOUND_VARIANT, stripNamespace(value)));
-        input.getOptionalValue("Variant", Integer.class).ifPresent(value -> entity.put(ChunkerEntityProperty.VARIANT_ID, value));
+        input.getOptionalValue(type == ChunkerVanillaEntityType.RABBIT ? "RabbitType" : "Variant", Integer.class)
+                .ifPresent(value -> entity.put(ChunkerEntityProperty.VARIANT_ID, value));
+        Map<ChunkerEntityFlag, Boolean> flags = new EnumMap<>(ChunkerEntityFlag.class);
+        for (ChunkerEntityFlag flag : ChunkerEntityFlag.values()) {
+            if (flag.appliesTo(type)) {
+                input.getOptionalValue(flag.getJavaKey(), Byte.class).ifPresent(value -> flags.put(flag, value == 1));
+            }
+        }
+        if (!flags.isEmpty()) {
+            entity.put(ChunkerEntityProperty.FLAGS, flags);
+        }
+        String itemDropTimeKey = type == ChunkerVanillaEntityType.CHICKEN ? "EggLayTime"
+                : type == ChunkerVanillaEntityType.ARMADILLO ? "scute_time" : null;
+        if (itemDropTimeKey != null) {
+            input.getOptionalValue(itemDropTimeKey, Integer.class)
+                    .ifPresent(value -> entity.put(ChunkerEntityProperty.ITEM_DROP_TIME, value));
+        }
+        CompoundTag carriedBlock = input.getCompound("carriedBlockState");
+        if (carriedBlock != null && type == ChunkerVanillaEntityType.ENDERMAN) {
+            entity.put(ChunkerEntityProperty.BLOCK_STATE, resolvers.readBlock(carriedBlock));
+        }
         input.getOptionalValue("Color", Byte.class).flatMap(value -> ChunkerDyeColor.getColorByID(value))
                 .ifPresent(value -> entity.put(ChunkerEntityProperty.COLOR, value));
         input.getOptionalValue("CollarColor", Byte.class).flatMap(value -> ChunkerDyeColor.getColorByID(value))
@@ -353,6 +416,8 @@ public final class JavaLivingEntityData {
 
         if (isVillager(type)) {
             JavaVillagerData.read(resolvers, input, entity);
+        } else if (type == ChunkerVanillaEntityType.PIGLIN_BRUTE) {
+            JavaVillagerData.readMemories(input, entity);
         }
     }
 

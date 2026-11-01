@@ -19,8 +19,11 @@ import java.util.List;
  * Handler for decorated pots.
  */
 public class BedrockDecoratedPotBlockEntityHandler extends BlockEntityHandler<BedrockResolvers, CompoundTag, DecoratedPotBlockEntity> {
-    public BedrockDecoratedPotBlockEntityHandler() {
+    private final boolean enableLootTables;
+
+    public BedrockDecoratedPotBlockEntityHandler(boolean enableLootTables) {
         super("DecoratedPot", DecoratedPotBlockEntity.class, DecoratedPotBlockEntity::new);
+        this.enableLootTables = enableLootTables;
     }
 
     @Override
@@ -35,20 +38,21 @@ public class BedrockDecoratedPotBlockEntityHandler extends BlockEntityHandler<Be
 
             // We'll set the sherds that are present
             value.setBack(items.get(0));
-            if (sherds.size() == 1) return;
-            value.setLeft(items.get(1));
-
-            if (sherds.size() == 2) return;
-            value.setRight(items.get(2));
-
-            if (sherds.size() == 3) return;
-            value.setFront(items.get(3));
+            if (items.size() > 1) value.setLeft(items.get(1));
+            if (items.size() > 2) value.setRight(items.get(2));
+            if (items.size() > 3) value.setFront(items.get(3));
         }
 
-        // Read item
+        // Read item (an emptied pot keeps an item with a count of 0)
         CompoundTag item = input.getCompound("item");
-        if (item != null) {
+        if (item != null && item.getByte("Count", (byte) 1) > 0) {
             value.setItem(resolvers.readItem(item));
+        }
+
+        // Pots in trial chambers are filled from a loot table when they're broken
+        String lootTable = input.getString("LootTable", null);
+        if (lootTable != null && !lootTable.isEmpty() && enableLootTables) {
+            value.setLootTable(BedrockRandomizableContainerBlockEntityHandler.bedrockLootTableToChunker(lootTable));
         }
     }
 
@@ -67,6 +71,9 @@ public class BedrockDecoratedPotBlockEntityHandler extends BlockEntityHandler<Be
             if (value.getItem() != null && !value.getItem().getIdentifier().isAir()) {
                 resolvers.writeItem(value.getItem()).ifPresent(item -> output.put("item", item));
             }
+        }
+        if (value.getLootTable() != null && enableLootTables) {
+            output.put("LootTable", BedrockRandomizableContainerBlockEntityHandler.chunkerLootTableToBedrock(value.getLootTable()));
         }
     }
 }

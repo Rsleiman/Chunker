@@ -26,8 +26,11 @@ import java.util.Optional;
 public class JavaDecoratedPotBlockEntityHandler extends BlockEntityHandler<JavaResolvers, CompoundTag, DecoratedPotBlockEntity> implements CustomItemNBTBlockEntityHandler<JavaResolvers, DecoratedPotBlockEntity> {
     private static final List<String> SIDES = List.of("back", "left", "right", "front");
 
-    public JavaDecoratedPotBlockEntityHandler() {
+    private final boolean enableLootTables;
+
+    public JavaDecoratedPotBlockEntityHandler(boolean enableLootTables) {
         super("minecraft:decorated_pot", DecoratedPotBlockEntity.class, DecoratedPotBlockEntity::new);
+        this.enableLootTables = enableLootTables;
     }
 
     @Override
@@ -44,20 +47,20 @@ public class JavaDecoratedPotBlockEntityHandler extends BlockEntityHandler<JavaR
 
             // We'll set the sherds that are present
             value.setBack(items.get(0));
-            if (sherds.size() == 1) return;
-            value.setLeft(items.get(1));
-
-            if (sherds.size() == 2) return;
-            value.setRight(items.get(2));
-
-            if (sherds.size() == 3) return;
-            value.setFront(items.get(3));
+            if (items.size() > 1) value.setLeft(items.get(1));
+            if (items.size() > 2) value.setRight(items.get(2));
+            if (items.size() > 3) value.setFront(items.get(3));
         }
 
         // Read item
         CompoundTag item = input.getCompound("item");
         if (item != null) {
             value.setItem(resolvers.readItem(item));
+        }
+
+        String lootTable = input.getString("LootTable", null);
+        if (lootTable != null && !lootTable.isEmpty() && enableLootTables) {
+            value.setLootTable(lootTable);
         }
     }
 
@@ -81,6 +84,11 @@ public class JavaDecoratedPotBlockEntityHandler extends BlockEntityHandler<JavaR
                 resolvers.writeItem(value.getItem()).ifPresent(item -> output.put("item", item));
             }
         }
+
+        // Pots in trial chambers are filled from a loot table when they're broken
+        if (value.getLootTable() != null && enableLootTables) {
+            output.put("LootTable", value.getLootTable());
+        }
     }
 
     @Override
@@ -101,14 +109,9 @@ public class JavaDecoratedPotBlockEntityHandler extends BlockEntityHandler<JavaR
 
             // We'll set the sherds that are present
             output.setBack(items.get(0));
-            if (sherds.size() == 1) return true; // Success
-            output.setLeft(items.get(1));
-
-            if (sherds.size() == 2) return true; // Success
-            output.setRight(items.get(2));
-
-            if (sherds.size() == 3) return true; // Success
-            output.setFront(items.get(3));
+            if (items.size() > 1) output.setLeft(items.get(1));
+            if (items.size() > 2) output.setRight(items.get(2));
+            if (items.size() > 3) output.setFront(items.get(3));
         }
 
         // Read the item from the container component

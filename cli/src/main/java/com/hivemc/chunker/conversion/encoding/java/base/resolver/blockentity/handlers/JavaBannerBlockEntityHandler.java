@@ -1,5 +1,7 @@
 package com.hivemc.chunker.conversion.encoding.java.base.resolver.blockentity.handlers;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.hivemc.chunker.conversion.encoding.base.resolver.blockentity.BlockEntityHandler;
 import com.hivemc.chunker.conversion.encoding.base.resolver.blockentity.CustomItemNBTBlockEntityHandler;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.JavaResolvers;
@@ -11,10 +13,12 @@ import com.hivemc.chunker.nbt.TagType;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
+import com.hivemc.chunker.nbt.tags.primitive.StringTag;
 import com.hivemc.chunker.util.JsonTextUtil;
 import it.unimi.dsi.fastutil.Pair;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -22,6 +26,11 @@ import java.util.Optional;
  * Handler for Banner Block Entities which also handles writing the component data.
  */
 public class JavaBannerBlockEntityHandler extends BlockEntityHandler<JavaResolvers, CompoundTag, BannerBlockEntity> implements CustomItemNBTBlockEntityHandler<JavaResolvers, BannerBlockEntity> {
+    /**
+     * The translation key of the ominous banner's name.
+     */
+    private static final String OMINOUS_BANNER_NAME = "block.minecraft.ominous_banner";
+
     public JavaBannerBlockEntityHandler() {
         super("minecraft:banner", BannerBlockEntity.class, BannerBlockEntity::new);
     }
@@ -66,6 +75,12 @@ public class JavaBannerBlockEntityHandler extends BlockEntityHandler<JavaResolve
         value.setCustomName(input.getOptional("CustomName", Tag.class)
                 .map(JsonTextUtil::fromNBT)
                 .orElse(null));
+
+        // A placed ominous banner keeps its item name in the components of the block entity
+        CompoundTag components = input.getCompound("components");
+        if (components != null && isOminous(components)) {
+            value.setOminous(true);
+        }
     }
 
     @Override
@@ -101,6 +116,40 @@ public class JavaBannerBlockEntityHandler extends BlockEntityHandler<JavaResolve
         if (value.getCustomName() != null) {
             output.put("CustomName", JsonTextUtil.toNBT(value.getCustomName(), resolvers.dataVersion()));
         }
+
+        // Java keeps the components a banner doesn't use itself on the block entity, so it drops as the ominous banner
+        if (value.isOminous() && resolvers.dataVersion().getVersion().isGreaterThanOrEqual(1, 20, 5)) {
+            writeOminousComponents(resolvers, output.getOrCreateCompound("components"));
+        }
+    }
+
+    /**
+     * Write the components which make a white banner the ominous banner (Raid.getBannerComponentPatch), a raid
+     * captain is only recognised by a banner with exactly these.
+     *
+     * @param resolvers  the resolvers.
+     * @param components the components to add to.
+     */
+    private static void writeOminousComponents(JavaResolvers resolvers, CompoundTag components) {
+        JsonObject name = new JsonObject();
+        name.addProperty("translate", OMINOUS_BANNER_NAME);
+        components.put("minecraft:item_name", JsonTextUtil.toNBT(name, resolvers.dataVersion()));
+        if (resolvers.dataVersion().getVersion().isGreaterThanOrEqual(1, 21, 5)) {
+            CompoundTag tooltipDisplay = new CompoundTag();
+            tooltipDisplay.put("hidden_components", new ListTag<>(TagType.STRING, List.of(new StringTag("minecraft:banner_patterns"))));
+            components.put("minecraft:tooltip_display", tooltipDisplay);
+        } else {
+            components.put("minecraft:hide_additional_tooltip", new CompoundTag());
+        }
+        components.put("minecraft:rarity", "uncommon");
+    }
+
+    private static boolean isOminous(CompoundTag components) {
+        Tag<?> name = components.get("minecraft:item_name");
+        if (name == null) return false;
+        JsonElement text = JsonTextUtil.fromNBT(name);
+        return text.isJsonObject() && text.getAsJsonObject().has("translate")
+                && OMINOUS_BANNER_NAME.equals(text.getAsJsonObject().get("translate").getAsString());
     }
 
     @Override
@@ -132,6 +181,10 @@ public class JavaBannerBlockEntityHandler extends BlockEntityHandler<JavaResolve
             }
         }
 
+        if (isOminous(components)) {
+            output.setOminous(true);
+        }
+
         // If either are present it was successful
         return baseColor.isPresent() || !output.getPatterns().isEmpty();
     }
@@ -159,6 +212,10 @@ public class JavaBannerBlockEntityHandler extends BlockEntityHandler<JavaResolve
                 }
             }
             output.getOrCreateCompound("components").put("minecraft:banner_patterns", patternTags);
+        }
+
+        if (input.isOminous()) {
+            writeOminousComponents(resolvers, output.getOrCreateCompound("components"));
         }
 
         return false; // Don't write the block entity data

@@ -160,7 +160,8 @@ public class JavaLevelWriter implements LevelWriter, JavaReaderWriter {
         mapData.put("height", (short) chunkerMap.getHeight());
         mapData.put("xCenter", chunkerMap.getXCenter());
         mapData.put("zCenter", chunkerMap.getZCenter());
-        mapData.put("trackingPosition", chunkerMap.isUnlimitedTracking() ? (byte) 1 : (byte) 0);
+        // Player markers are on for every map made in survival (Bedrock saves them per item, not per map)
+        mapData.put("trackingPosition", (byte) 1);
         mapData.put("unlimitedTracking", chunkerMap.isUnlimitedTracking() ? (byte) 1 : (byte) 0);
         mapData.put("locked", chunkerMap.isLocked() ? (byte) 1 : (byte) 0);
         mapData.put("scale", chunkerMap.getScale());

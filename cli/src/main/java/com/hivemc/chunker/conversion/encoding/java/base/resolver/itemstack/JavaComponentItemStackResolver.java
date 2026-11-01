@@ -26,6 +26,7 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.Ch
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.ChunkerTrimMaterial;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.trim.ChunkerTrimPattern;
 import com.hivemc.chunker.conversion.intermediate.column.entity.Entity;
+import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntity;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
 import com.hivemc.chunker.conversion.intermediate.level.map.ChunkerMap;
@@ -1078,6 +1079,57 @@ public class JavaComponentItemStackResolver extends ItemStackResolver<JavaResolv
                     // Add the tag
                     state.value().getOrCreateCompound("components").put("minecraft:entity_data", tag);
                 }
+            }
+        });
+
+        // Crossbows (a multishot crossbow is loaded with three)
+        registerContextualHandler(ChunkerItemProperty.CHARGED_PROJECTILES, new PropertyHandler<>() {
+            @Override
+            public Optional<List<ChunkerItemStack>> read(@NotNull Pair<ChunkerItemStack, CompoundTag> state) {
+                Optional<ListTag<CompoundTag, Map<String, Tag<?>>>> component = state.value().getOptional("components", CompoundTag.class)
+                        .flatMap(tag -> tag.getOptionalList("minecraft:charged_projectiles", CompoundTag.class));
+                if (component.isEmpty()) return Optional.empty();
+
+                List<ChunkerItemStack> projectiles = new ArrayList<>(component.get().size());
+                for (CompoundTag itemTag : component.get()) {
+                    ChunkerItemStack item = resolvers.readItem(itemTag);
+                    if (!item.getIdentifier().isAir()) {
+                        projectiles.add(item);
+                    }
+                }
+                return projectiles.isEmpty() ? Optional.empty() : Optional.of(projectiles);
+            }
+
+            @Override
+            public void write(@NotNull Pair<ChunkerItemStack, CompoundTag> state, @NotNull List<ChunkerItemStack> projectiles) {
+                List<ChunkerItemStack> loaded = projectiles;
+                Map<ChunkerEnchantmentType, Integer> enchantments = state.key().get(ChunkerItemProperty.ENCHANTMENTS);
+                if (projectiles.size() == 1 && enchantments != null && enchantments.containsKey(ChunkerEnchantmentType.MULTISHOT)) {
+                    loaded = List.of(projectiles.get(0), projectiles.get(0), projectiles.get(0));
+                }
+
+                ListTag<CompoundTag, Map<String, Tag<?>>> items = new ListTag<>(TagType.COMPOUND, loaded.size());
+                for (ChunkerItemStack item : loaded) {
+                    if (item.getIdentifier().isAir()) continue;
+                    resolvers.writeItem(item).ifPresent(items::add);
+                }
+                if (items.size() > 0) {
+                    state.value().getOrCreateCompound("components").put("minecraft:charged_projectiles", items);
+                }
+            }
+        });
+
+        // Mob buckets: the variant components and the data the mob keeps (Bucketable.saveDefaultDataToBucketTag)
+        registerContextualHandler(ChunkerItemProperty.BUCKET_ENTITY, new PropertyHandler<>() {
+            @Override
+            public Optional<Entity> read(@NotNull Pair<ChunkerItemStack, CompoundTag> state) {
+                return Optional.empty(); // Java buckets don't keep enough to rebuild the entity
+            }
+
+            @Override
+            public void write(@NotNull Pair<ChunkerItemStack, CompoundTag> state, @NotNull Entity value) {
+                if (!(value instanceof GenericEntity entity)) return;
+                JavaBucketData.write(resolvers, state.value().getOrCreateCompound("components"), entity);
             }
         });
 

@@ -18,6 +18,11 @@ import java.util.Optional;
  * Handler for Campfire Block Entities.
  */
 public class JavaCampfireBlockEntityHandler extends BlockEntityHandler<JavaResolvers, CompoundTag, CampfireBlockEntity> implements CustomItemNBTBlockEntityHandler<JavaResolvers, CampfireBlockEntity> {
+    /**
+     * The ticks every vanilla campfire recipe takes, without a total Java finishes the item at once.
+     */
+    private static final int CAMPFIRE_COOKING_TIME = 600;
+
     public JavaCampfireBlockEntityHandler() {
         super("minecraft:campfire", CampfireBlockEntity.class, CampfireBlockEntity::new);
     }
@@ -50,6 +55,7 @@ public class JavaCampfireBlockEntityHandler extends BlockEntityHandler<JavaResol
     @Override
     public void write(@NotNull JavaResolvers resolvers, @NotNull CompoundTag output, @NotNull CampfireBlockEntity value) {
         int[] cookingTimes = new int[4];
+        int[] cookingTotalTimes = new int[4];
         ListTag<CompoundTag, Map<String, Tag<?>>> items = new ListTag<>(TagType.COMPOUND, 4);
         for (int i = 0; i < value.getItems().length; i++) {
             ChunkerItemStack itemStack = value.getItems()[i];
@@ -64,11 +70,13 @@ public class JavaCampfireBlockEntityHandler extends BlockEntityHandler<JavaResol
             item.get().put("Slot", (byte) i);
             items.add(item.get());
 
-            // Write cooking time
+            // Write cooking time, every vanilla campfire recipe takes 600 ticks (Bedrock doesn't save the total)
             cookingTimes[i] = value.getCookingTimes()[i];
+            cookingTotalTimes[i] = CAMPFIRE_COOKING_TIME;
         }
         output.put("Items", items);
         output.put("CookingTimes", cookingTimes);
+        output.put("CookingTotalTimes", cookingTotalTimes);
     }
 
     @Override

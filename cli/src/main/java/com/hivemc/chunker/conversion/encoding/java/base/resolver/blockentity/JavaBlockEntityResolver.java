@@ -95,7 +95,7 @@ public class JavaBlockEntityResolver extends BlockEntityResolver<JavaResolvers, 
         }
         if (version.isGreaterThanOrEqual(1, 19, 4)) {
             register(new JavaBrushableBlockEntityHandler(resolvers.converter().shouldProcessLootTables()));
-            register(new JavaDecoratedPotBlockEntityHandler());
+            register(new JavaDecoratedPotBlockEntityHandler(resolvers.converter().shouldProcessLootTables()));
         }
         if (version.isGreaterThanOrEqual(1, 20, 0)) {
             register(new EmptyBlockEntityHandler<>("minecraft:hanging_sign", HangingSignBlockEntity.class, HangingSignBlockEntity::new));

@@ -76,6 +76,29 @@ public final class JavaVillagerData {
             output.put("Offers", offersTag);
         }
 
+        writeMemories(output, entity);
+
+        List<ChunkerGossip> gossips = entity.get(ChunkerEntityProperty.VILLAGER_GOSSIPS);
+        if (gossips != null && !gossips.isEmpty()) {
+            ListTag<CompoundTag, Map<String, Tag<?>>> gossipsTag = new ListTag<>(TagType.COMPOUND, gossips.size());
+            for (ChunkerGossip gossip : gossips) {
+                CompoundTag gossipTag = new CompoundTag();
+                gossipTag.put("Target", JavaEntityNBT.toIntArray(gossip.target()));
+                gossipTag.put("Type", gossip.type().getName());
+                gossipTag.put("Value", gossip.value());
+                gossipsTag.add(gossipTag);
+            }
+            output.put("Gossips", gossipsTag);
+        }
+    }
+
+    /**
+     * Write the remembered positions (VILLAGER_MEMORIES) as Brain memories, used by villagers and piglin brutes.
+     *
+     * @param output the entity NBT.
+     * @param entity the entity.
+     */
+    public static void writeMemories(CompoundTag output, GenericEntity entity) {
         Map<ChunkerVillagerMemory, ChunkerGlobalPosition> memories = entity.get(ChunkerEntityProperty.VILLAGER_MEMORIES);
         if (memories != null && !memories.isEmpty()) {
             CompoundTag memoriesTag = new CompoundTag();
@@ -92,18 +115,31 @@ public final class JavaVillagerData {
             brain.put("memories", memoriesTag);
             output.put("Brain", brain);
         }
+    }
 
-        List<ChunkerGossip> gossips = entity.get(ChunkerEntityProperty.VILLAGER_GOSSIPS);
-        if (gossips != null && !gossips.isEmpty()) {
-            ListTag<CompoundTag, Map<String, Tag<?>>> gossipsTag = new ListTag<>(TagType.COMPOUND, gossips.size());
-            for (ChunkerGossip gossip : gossips) {
-                CompoundTag gossipTag = new CompoundTag();
-                gossipTag.put("Target", JavaEntityNBT.toIntArray(gossip.target()));
-                gossipTag.put("Type", gossip.type().getName());
-                gossipTag.put("Value", gossip.value());
-                gossipsTag.add(gossipTag);
+    /**
+     * Read the remembered positions (VILLAGER_MEMORIES) from the Brain memories.
+     *
+     * @param input  the entity NBT.
+     * @param entity the entity to fill.
+     */
+    public static void readMemories(CompoundTag input, GenericEntity entity) {
+        CompoundTag brain = input.getCompound("Brain");
+        CompoundTag memoriesTag = brain == null ? null : brain.getCompound("memories");
+        if (memoriesTag != null) {
+            Map<ChunkerVillagerMemory, ChunkerGlobalPosition> memories = new EnumMap<>(ChunkerVillagerMemory.class);
+            for (ChunkerVillagerMemory memory : ChunkerVillagerMemory.values()) {
+                CompoundTag memoryTag = memoriesTag.getCompound("minecraft:" + memory.getName());
+                CompoundTag value = memoryTag == null ? null : memoryTag.getCompound("value");
+                if (value == null) continue;
+                int[] pos = value.getIntArray("pos", null);
+                Dimension dimension = getDimension(value.getString("dimension", ""));
+                if (pos == null || pos.length != 3 || dimension == null) continue;
+                memories.put(memory, new ChunkerGlobalPosition(dimension, pos[0], pos[1], pos[2]));
             }
-            output.put("Gossips", gossipsTag);
+            if (!memories.isEmpty()) {
+                entity.put(ChunkerEntityProperty.VILLAGER_MEMORIES, memories);
+            }
         }
     }
 
@@ -170,23 +206,7 @@ public final class JavaVillagerData {
             entity.put(ChunkerEntityProperty.TRADE_OFFERS, offers);
         }
 
-        CompoundTag brain = input.getCompound("Brain");
-        CompoundTag memoriesTag = brain == null ? null : brain.getCompound("memories");
-        if (memoriesTag != null) {
-            Map<ChunkerVillagerMemory, ChunkerGlobalPosition> memories = new EnumMap<>(ChunkerVillagerMemory.class);
-            for (ChunkerVillagerMemory memory : ChunkerVillagerMemory.values()) {
-                CompoundTag memoryTag = memoriesTag.getCompound("minecraft:" + memory.getName());
-                CompoundTag value = memoryTag == null ? null : memoryTag.getCompound("value");
-                if (value == null) continue;
-                int[] pos = value.getIntArray("pos", null);
-                Dimension dimension = getDimension(value.getString("dimension", ""));
-                if (pos == null || pos.length != 3 || dimension == null) continue;
-                memories.put(memory, new ChunkerGlobalPosition(dimension, pos[0], pos[1], pos[2]));
-            }
-            if (!memories.isEmpty()) {
-                entity.put(ChunkerEntityProperty.VILLAGER_MEMORIES, memories);
-            }
-        }
+        readMemories(input, entity);
 
         ListTag<CompoundTag, Map<String, Tag<?>>> gossipsTag = input.getList("Gossips", CompoundTag.class, null);
         if (gossipsTag != null) {

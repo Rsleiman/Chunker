@@ -64,6 +64,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class JavaBasicItemResolverTests {
     public static final Map<ChunkerItemProperty<?>, Object> DEFAULTS = Map.of(ChunkerItemProperty.AMOUNT, 1);
     public static final Set<ChunkerItemProperty<?>> SKIPPED_PROPERTIES = Set.of(
+            ChunkerItemProperty.CHARGED_PROJECTILES, // Bedrock keeps one, tested in BedrockBlockEntityDataTests
+            ChunkerItemProperty.BUCKET_ENTITY, // Only written to Java, tested in BedrockBlockEntityDataTests
             ChunkerItemProperty.OMINOUS_BOTTLE_AMPLIFIER,
             ChunkerItemProperty.EXPLORER_MAP // Inferred from the map decoration
     );

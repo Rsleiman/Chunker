@@ -25,6 +25,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A Bedrock Level Reader / Writer, used to share resolvers.
@@ -59,6 +60,10 @@ public interface BedrockReaderWriter extends LevelReaderWriter {
      * @return the memories or null if none are known.
      */
     @Nullable
+    default Optional<Integer> findMapIndex(long mapId) {
+        return Optional.empty();
+    }
+
     default Map<ChunkerVillagerMemory, ChunkerGlobalPosition> getVillagerMemories(long villagerId) {
         return null;
     }
@@ -101,6 +106,7 @@ public interface BedrockReaderWriter extends LevelReaderWriter {
                 .preTransformManager(isReader() ? new BedrockReaderPreTransformManager(version) : new BedrockWriterPreTransformManager(version))
                 .lodestoneData(this::getLodestoneData, this::getOrCreateLodestoneData)
                 .villagerMemories(this::getVillagerMemories)
+                .mapIndex(this::findMapIndex)
                 .playerIds(this::getPlayerIds);
     }
 }

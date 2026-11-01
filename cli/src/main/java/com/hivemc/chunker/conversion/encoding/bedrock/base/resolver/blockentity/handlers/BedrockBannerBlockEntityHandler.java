@@ -64,12 +64,25 @@ public class BedrockBannerBlockEntityHandler extends BlockEntityHandler<BedrockR
             .put(ChunkerVanillaBlockType.BLACK_WALL_BANNER, Pair.of(true, ChunkerDyeColor.BLACK))
             .build();
 
+    /**
+     * The banner Type of the ominous banner (0 is a normal banner).
+     */
+    public static final int OMINOUS_TYPE = 1;
+
     public BedrockBannerBlockEntityHandler() {
         super("Banner", BannerBlockEntity.class, BannerBlockEntity::new);
     }
 
     @Override
     public void read(@NotNull BedrockResolvers resolvers, @NotNull CompoundTag input, @NotNull BannerBlockEntity value) {
+        // Type 1 is the ominous banner, which Bedrock draws from the type alone (white with the raid patterns)
+        if (input.getInt("Type", 0) == OMINOUS_TYPE) {
+            value.setOminous(true);
+            value.setBase(Optional.of(ChunkerDyeColor.WHITE));
+            value.getPatterns().addAll(BannerBlockEntity.OMINOUS_PATTERNS);
+            return;
+        }
+
         // Parse base
         value.setBase(input.getOptionalValue("Base", Integer.class).flatMap(ChunkerDyeColor::getColorByReversedID));
 
@@ -93,6 +106,10 @@ public class BedrockBannerBlockEntityHandler extends BlockEntityHandler<BedrockR
 
     @Override
     public void write(@NotNull BedrockResolvers resolvers, @NotNull CompoundTag output, @NotNull BannerBlockEntity value) {
+        if (value.isOminous()) {
+            output.put("Type", OMINOUS_TYPE);
+        }
+
         // Write base
         if (value.getBase().isPresent()) {
             output.put("Base", value.getBase().get().getReversedID());
@@ -157,6 +174,10 @@ public class BedrockBannerBlockEntityHandler extends BlockEntityHandler<BedrockR
 
     @Override
     public BannerBlockEntity updateBeforeProcess(@NotNull BedrockResolvers resolvers, CompoundTag itemCompoundTag, ChunkerItemStack chunkerItemStack, BannerBlockEntity blockEntity) {
-        return blockEntity; // This block entity doesn't need any updating when it's an item
+        // An ominous banner item is a white banner (by its item type), Java only gives shields a base color
+        if (blockEntity.isOminous()) {
+            blockEntity.setBase(Optional.empty());
+        }
+        return blockEntity;
     }
 }

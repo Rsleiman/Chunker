@@ -23,6 +23,12 @@ public class BedrockRandomizableContainerBlockEntityHandler extends BlockEntityH
             .put("minecraft:chests/shipwreck", "minecraft:chests/shipwreck_map")
             .put("minecraft:chests/shipwrecksupply", "minecraft:chests/shipwreck_supply")
             .put("minecraft:chests/shipwrecktreasure", "minecraft:chests/shipwreck_treasure")
+            .put("minecraft:entities/cold_ocean_ruins_brushable_block", "minecraft:archaeology/ocean_ruin_cold")
+            .put("minecraft:entities/warm_ocean_ruins_brushable_block", "minecraft:archaeology/ocean_ruin_warm")
+            .put("minecraft:entities/desert_pyramid_brushable_block", "minecraft:archaeology/desert_pyramid")
+            .put("minecraft:entities/desert_well_brushable_block", "minecraft:archaeology/desert_well")
+            .put("minecraft:entities/trail_ruins_brushable_block_common", "minecraft:archaeology/trail_ruins_common")
+            .put("minecraft:entities/trail_ruins_brushable_block_rare", "minecraft:archaeology/trail_ruins_rare")
             .build();
     /**
      * Loot Tables which are on Chunker only.

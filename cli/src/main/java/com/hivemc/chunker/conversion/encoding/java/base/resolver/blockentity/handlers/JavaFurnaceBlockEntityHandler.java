@@ -3,7 +3,9 @@ package com.hivemc.chunker.conversion.encoding.java.base.resolver.blockentity.ha
 import com.hivemc.chunker.conversion.encoding.base.resolver.blockentity.BlockEntityHandler;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.JavaResolvers;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.blockentity.legacy.handlers.JavaLegacyFurnaceBlockEntityHandler;
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.BlastFurnaceBlockEntity;
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.FurnaceBlockEntity;
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.SmokerBlockEntity;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import org.jetbrains.annotations.NotNull;
 
@@ -20,7 +22,7 @@ public class JavaFurnaceBlockEntityHandler extends BlockEntityHandler<JavaResolv
         if (input.contains("lit_time_remaining")) {
             value.setBurnTime(JavaLegacyFurnaceBlockEntityHandler.getShortOrInt(input, "lit_time_remaining", (short) 0));
         } else {
-            value.setCookTime(JavaLegacyFurnaceBlockEntityHandler.getShortOrInt(input, "BurnTime", (short) 0));
+            value.setBurnTime(JavaLegacyFurnaceBlockEntityHandler.getShortOrInt(input, "BurnTime", (short) 0));
         }
         if (input.contains("cooking_time_spent")) {
             value.setCookTime(JavaLegacyFurnaceBlockEntityHandler.getShortOrInt(input, "cooking_time_spent", (short) 0));
@@ -34,6 +36,17 @@ public class JavaFurnaceBlockEntityHandler extends BlockEntityHandler<JavaResolv
         }
     }
 
+    /**
+     * Get the time an item takes to cook, which Bedrock doesn't save. Without it Java never finishes the item being
+     * cooked, as it finishes an item when the time spent equals the total. Every vanilla recipe takes 200 ticks in a furnace and 100 in a smoker or blast furnace.
+     *
+     * @param value the furnace.
+     * @return the total cooking time in ticks.
+     */
+    private static short getCookingTotalTime(FurnaceBlockEntity value) {
+        return (short) (value instanceof SmokerBlockEntity || value instanceof BlastFurnaceBlockEntity ? 100 : 200);
+    }
+
     @Override
     public void write(@NotNull JavaResolvers resolvers, @NotNull CompoundTag output, @NotNull FurnaceBlockEntity value) {
         // In 1.21.4 the fields for the furnace burn times got renamed
@@ -44,10 +57,12 @@ public class JavaFurnaceBlockEntityHandler extends BlockEntityHandler<JavaResolv
                 output.put("lit_time_remaining", (int) value.getBurnTime());
                 output.put("cooking_time_spent", (int) value.getCookTime());
                 output.put("lit_total_time", (int) value.getCookTimeTotal());
+                output.put("cooking_total_time", (int) getCookingTotalTime(value));
             } else {
                 output.put("lit_time_remaining", value.getBurnTime());
                 output.put("cooking_time_spent", value.getCookTime());
                 output.put("lit_total_time", value.getCookTimeTotal());
+                output.put("cooking_total_time", getCookingTotalTime(value));
             }
         } else {
             output.put("BurnTime", value.getBurnTime());

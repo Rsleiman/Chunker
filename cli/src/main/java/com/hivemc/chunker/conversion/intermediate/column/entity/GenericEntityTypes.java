@@ -169,13 +169,14 @@ public final class GenericEntityTypes {
     ).collect(Collectors.toCollection(() -> EnumSet.noneOf(ChunkerVanillaEntityType.class))));
 
     /**
-     * Entities which aren't living: dropped items, experience orbs, arrows, minecarts and boats.
+     * Entities which aren't living: dropped items, experience orbs, arrows, falling blocks, minecarts and boats.
      */
     public static final Set<ChunkerEntityType> NON_LIVING = Collections.unmodifiableSet(Stream.concat(
             Stream.of(
                     ChunkerVanillaEntityType.ITEM,
                     ChunkerVanillaEntityType.EXPERIENCE_ORB,
                     ChunkerVanillaEntityType.ARROW,
+                    ChunkerVanillaEntityType.FALLING_BLOCK,
                     ChunkerVanillaEntityType.MINECART,
                     ChunkerVanillaEntityType.CHEST_MINECART,
                     ChunkerVanillaEntityType.HOPPER_MINECART,

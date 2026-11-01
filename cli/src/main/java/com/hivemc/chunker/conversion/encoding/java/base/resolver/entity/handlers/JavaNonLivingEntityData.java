@@ -2,6 +2,7 @@ package com.hivemc.chunker.conversion.encoding.java.base.resolver.entity.handler
 
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.JavaResolvers;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.blockentity.handlers.JavaRandomizableContainerBlockEntityHandler;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack;
 import com.hivemc.chunker.conversion.intermediate.column.entity.ChunkerEntityProperty;
 import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntity;
@@ -18,7 +19,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 /**
- * Writes and reads the data of Java entities which aren't living (dropped items, experience orbs, arrows, minecarts
+ * Writes and reads the data of Java entities which aren't living (dropped items, experience orbs, arrows, falling blocks, minecarts
  * and boats), as stored from 1.21.5 onwards.
  */
 public final class JavaNonLivingEntityData {
@@ -37,6 +38,10 @@ public final class JavaNonLivingEntityData {
         if (type == ChunkerVanillaEntityType.ITEM) {
             JavaLivingEntityData.writeItem(resolvers, entity.get(ChunkerEntityProperty.ITEM)).ifPresent(item -> output.put("Item", item));
             writeAgeAndHealth(output, entity);
+            UUID thrower = entity.get(ChunkerEntityProperty.OWNER);
+            if (thrower != null) {
+                output.put("Thrower", JavaEntityNBT.toIntArray(thrower));
+            }
         } else if (type == ChunkerVanillaEntityType.EXPERIENCE_ORB) {
             Integer value = entity.get(ChunkerEntityProperty.EXPERIENCE_VALUE);
             output.put("Value", (short) (value == null ? 1 : value));
@@ -55,6 +60,14 @@ public final class JavaNonLivingEntityData {
             if (owner != null) {
                 output.put("Owner", JavaEntityNBT.toIntArray(owner));
             }
+        } else if (type == ChunkerVanillaEntityType.FALLING_BLOCK) {
+            ChunkerBlockIdentifier blockState = entity.get(ChunkerEntityProperty.BLOCK_STATE);
+            if (blockState != null) {
+                output.put("BlockState", resolvers.writeBlock(blockState));
+            }
+            Integer time = entity.get(ChunkerEntityProperty.AGE);
+            output.put("Time", time == null ? 0 : time);
+            output.put("DropItem", (byte) 1);
         }
 
         if (GenericEntityTypes.CONTAINERS.contains(type)) {
@@ -96,6 +109,10 @@ public final class JavaNonLivingEntityData {
                 entity.put(ChunkerEntityProperty.ITEM, resolvers.readItem(item));
             }
             readAgeAndHealth(input, entity);
+            UUID thrower = JavaEntityNBT.fromIntArray(input.getIntArray("Thrower", null));
+            if (thrower != null) {
+                entity.put(ChunkerEntityProperty.OWNER, thrower);
+            }
         } else if (type == ChunkerVanillaEntityType.EXPERIENCE_ORB) {
             input.getOptionalValue("Value", Number.class).ifPresent(value -> entity.put(ChunkerEntityProperty.EXPERIENCE_VALUE, value.intValue()));
             readAgeAndHealth(input, entity);
@@ -106,6 +123,12 @@ public final class JavaNonLivingEntityData {
             if (owner != null) {
                 entity.put(ChunkerEntityProperty.OWNER, owner);
             }
+        } else if (type == ChunkerVanillaEntityType.FALLING_BLOCK) {
+            CompoundTag blockState = input.getCompound("BlockState");
+            if (blockState != null) {
+                entity.put(ChunkerEntityProperty.BLOCK_STATE, resolvers.readBlock(blockState));
+            }
+            input.getOptionalValue("Time", Integer.class).ifPresent(time -> entity.put(ChunkerEntityProperty.AGE, time));
         }
 
         if (GenericEntityTypes.CONTAINERS.contains(type)) {

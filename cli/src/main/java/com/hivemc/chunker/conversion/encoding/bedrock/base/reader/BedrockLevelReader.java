@@ -69,6 +69,11 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
     protected final Set<Long> playerIds = ConcurrentHashMap.newKeySet();
     protected final Map<Dimension, Set<ChunkCoordPair>> entitiesOnlyColumns = new ConcurrentHashMap<>();
     protected DB database;
+    /**
+     * The level being read, so items read with it (e.g. in player inventories) can find its maps.
+     */
+    @Nullable
+    protected volatile ChunkerLevel readLevel;
 
     /**
      * Create a new level reader.
@@ -264,9 +269,12 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
      */
     protected Task<WorldConversionHandler> collectLevelData(LevelConversionHandler levelConversionHandler) {
         ChunkerLevel output = new ChunkerLevel();
+        readLevel = output;
         ProgressiveTask<Void> parseLevelSettings = Task.asyncConsume("Parsing Level Settings", TaskWeight.NORMAL, this::parseLevelSettings, output);
-        ProgressiveTask<Void> parsePlayers = Task.asyncConsume("Parsing Players", TaskWeight.NORMAL, this::parsePlayers, output);
         ProgressiveTask<Void> parseMaps = Task.asyncConsume("Parsing Saved Maps", TaskWeight.NORMAL, this::parseMaps, output);
+
+        // Players are read after the maps, so the maps in their inventories can be found
+        ProgressiveTask<Void> parsePlayers = parseMaps.thenConsume("Parsing Players", TaskWeight.NORMAL, this::parsePlayers, output);
         ProgressiveTask<Void> parsePortals = Task.asyncConsume("Parsing Portals", TaskWeight.NORMAL, this::parsePortals, output);
         ProgressiveTask<Void> parseStructures = Task.asyncConsume("Parsing Structures", TaskWeight.NORMAL, this::parseStructures, output);
         ProgressiveTask<Void> parseCustomBiomes = Task.asyncConsume("Parsing Biome List", TaskWeight.NORMAL, this::parseBiomeList, output);
@@ -728,6 +736,12 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
         } catch (Exception e) {
             converter.logNonFatalException(e);
         }
+    }
+
+    @Override
+    public Optional<Integer> findMapIndex(long mapId) {
+        ChunkerLevel level = readLevel;
+        return level == null ? Optional.empty() : level.findMapIndexByOriginalID(mapId);
     }
 
     @Override

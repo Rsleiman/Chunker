@@ -2,6 +2,8 @@ package com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.hand
 
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.BedrockResolvers;
 import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.entity.BedrockEntityUUIDs;
+import com.hivemc.chunker.conversion.encoding.bedrock.base.resolver.identifier.BedrockBlockCompoundTag;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.item.ChunkerVanillaItemType;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty;
@@ -11,10 +13,14 @@ import com.hivemc.chunker.conversion.intermediate.column.entity.ChunkerEntityPro
 import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntity;
 import com.hivemc.chunker.conversion.intermediate.column.entity.GenericEntityTypes;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerBlockPosition;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerEntityFlag;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerEquipmentSlot;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerGlobalPosition;
 import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerMobEffect;
+import com.hivemc.chunker.conversion.intermediate.column.entity.data.ChunkerVillagerMemory;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVanillaEntityType;
+import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
@@ -52,6 +58,40 @@ public final class BedrockLivingEntityReader {
      * Bedrock fox Variant to the Java type (not tested in game).
      */
     private static final String[] FOX_VARIANTS = {"red", "snow"};
+    /**
+     * Bedrock axolotl Variant (lucy, cyan, gold, wild, blue) to the Java variant ID (lucy, wild, gold, cyan, blue).
+     */
+    private static final int[] AXOLOTL_VARIANTS = {0, 3, 2, 1, 4};
+    /**
+     * Bedrock salmon size groups to the Java type.
+     */
+    private static final Map<String, String> SALMON_SIZES = Map.of(
+            "scale_small", "small", "scale_normal", "medium", "scale_large", "large"
+    );
+    /**
+     * Bedrock frog Variant to the Java variant.
+     */
+    private static final String[] FROG_VARIANTS = {"temperate", "cold", "warm"};
+    /**
+     * Bedrock zombie nautilus variant property to the Java variant.
+     */
+    private static final Map<String, String> ZOMBIE_NAUTILUS_VARIANTS = Map.of("default", "temperate", "coral", "warm");
+    /**
+     * Bedrock sound variants which Java names differently.
+     */
+    private static final Map<String, String> SOUND_VARIANTS = Map.of("default", "classic", "mad", "angry");
+    /**
+     * Mobs which keep a saddle (slot 0) and armor (slot 1) in a horse-style inventory.
+     */
+    private static final Set<ChunkerEntityType> NAUTILUSES = Set.of(
+            ChunkerVanillaEntityType.NAUTILUS, ChunkerVanillaEntityType.ZOMBIE_NAUTILUS
+    );
+    /**
+     * Mobs which can lead a patrol (Bedrock marks the captain with the illager_squad_captain or patrol_captain group).
+     */
+    private static final Set<ChunkerEntityType> PATROL_CAPTAINS = Set.of(
+            ChunkerVanillaEntityType.PILLAGER, ChunkerVanillaEntityType.VINDICATOR
+    );
     /**
      * Bedrock Armor list index to the equipment slot.
      */
@@ -181,7 +221,7 @@ public final class BedrockLivingEntityReader {
 
         // Horses keep the saddle (slot 0) and armor or carpet (slot 1) in their inventory, then the chest
         Map<Integer, ChunkerItemStack> inventory = new TreeMap<>();
-        if (GenericEntityTypes.HORSES.contains(type)) {
+        if (GenericEntityTypes.HORSES.contains(type) || NAUTILUSES.contains(type)) {
             ListTag<CompoundTag, Map<String, Tag<?>>> chestItems = input.getList("ChestItems", CompoundTag.class, null);
             if (chestItems != null) {
                 boolean chested = GenericEntityTypes.CHESTED_HORSES.contains(type) && input.getByte("Chested", (byte) 0) == 1;
@@ -197,6 +237,23 @@ public final class BedrockLivingEntityReader {
                         inventory.put(slot - 2, item);
                     }
                 }
+            }
+        }
+
+        // An enderman holds its block as an item, Java keeps it as a block state
+        if (type == ChunkerVanillaEntityType.ENDERMAN) {
+            readCarriedBlock(resolvers, input, entity);
+            equipment.remove(ChunkerEquipmentSlot.MAINHAND);
+            dropChances.remove(ChunkerEquipmentSlot.MAINHAND);
+        }
+
+        // A Bedrock captain wears the ominous banner in the chest slot, Java on the head, where it always drops
+        if (PATROL_CAPTAINS.contains(type) && isPatrolCaptain(input, groups) && !equipment.containsKey(ChunkerEquipmentSlot.HEAD)) {
+            ChunkerItemStack banner = equipment.remove(ChunkerEquipmentSlot.CHEST);
+            if (banner != null) {
+                equipment.put(ChunkerEquipmentSlot.HEAD, banner);
+                dropChances.remove(ChunkerEquipmentSlot.CHEST);
+                dropChances.put(ChunkerEquipmentSlot.HEAD, GUARANTEED_DROP_CHANCE);
             }
         }
 
@@ -309,6 +366,10 @@ public final class BedrockLivingEntityReader {
                 }
             }
 
+            if (input.getByte("GrowthPaused", (byte) 0) == 1) {
+                putFlag(entity, ChunkerEntityFlag.AGE_LOCKED, true);
+            }
+
             int inLove = input.getInt("InLove", 0);
             if (inLove > 0) {
                 entity.put(ChunkerEntityProperty.IN_LOVE, inLove);
@@ -321,7 +382,7 @@ public final class BedrockLivingEntityReader {
     }
 
     private static void readTaming(BedrockResolvers resolvers, CompoundTag input, GenericEntity entity, ChunkerEntityType type) {
-        if (!GenericEntityTypes.SITTING_PETS.contains(type) && !GenericEntityTypes.HORSES.contains(type)) return;
+        if (!GenericEntityTypes.SITTING_PETS.contains(type) && !GenericEntityTypes.HORSES.contains(type) && !NAUTILUSES.contains(type)) return;
 
         boolean tamed = input.getByte("IsTamed", (byte) 0) == 1;
         entity.put(ChunkerEntityProperty.TAMED, tamed);
@@ -341,7 +402,7 @@ public final class BedrockLivingEntityReader {
 
         // Sound variants (cats, cows, pigs, chickens, wolves), Bedrock "default" is Java "classic"
         properties.getOptionalValue("minecraft:sound_variant", String.class)
-                .ifPresent(sound -> entity.put(ChunkerEntityProperty.SOUND_VARIANT, sound.equals("default") ? "classic" : sound));
+                .ifPresent(sound -> entity.put(ChunkerEntityProperty.SOUND_VARIANT, SOUND_VARIANTS.getOrDefault(sound, sound)));
 
         switch (vanillaType) {
             case CAT -> {
@@ -358,8 +419,80 @@ public final class BedrockLivingEntityReader {
                 }
                 readCollar(input, entity);
             }
-            case COW, PIG, CHICKEN -> properties.getOptionalValue("minecraft:climate_variant", String.class)
+            case COW, PIG -> properties.getOptionalValue("minecraft:climate_variant", String.class)
                     .ifPresent(climate -> entity.put(ChunkerEntityProperty.VARIANT, climate));
+            case CHICKEN -> {
+                String climate = properties.getString("minecraft:climate_variant", null);
+                if (climate != null) {
+                    entity.put(ChunkerEntityProperty.VARIANT, climate);
+                }
+
+                // One egg timer per climate (temperate, warm, cold), the one for the chicken's climate counts
+                int index = climate == null ? 0 : switch (climate) {
+                    case "warm" -> 1;
+                    case "cold" -> 2;
+                    default -> 0;
+                };
+                readSpawnTimer(input, entity, index);
+            }
+            case ARMADILLO -> readSpawnTimer(input, entity, 0);
+            case AXOLOTL -> {
+                int axolotl = getGroupVariant(groups, "axolotl_", List.of("lucy", "cyan", "gold", "wild", "blue"), variant);
+                if (axolotl >= 0 && axolotl < AXOLOTL_VARIANTS.length) {
+                    entity.put(ChunkerEntityProperty.VARIANT_ID, AXOLOTL_VARIANTS[axolotl]);
+                }
+            }
+            case PARROT -> entity.put(ChunkerEntityProperty.VARIANT_ID,
+                    getGroupVariant(groups, "parrot_", List.of("red", "blue", "green", "cyan", "silver"), variant));
+            case RABBIT -> entity.put(ChunkerEntityProperty.VARIANT_ID,
+                    getGroupVariant(groups, "coat_", List.of("brown", "white", "black", "splotched", "desert", "salt"), variant));
+            case FROG -> {
+                int frog = getGroupVariant(groups, "", List.of("temperate_frog", "cold_frog", "warm_frog"), variant);
+                if (frog >= 0 && frog < FROG_VARIANTS.length) {
+                    entity.put(ChunkerEntityProperty.VARIANT, FROG_VARIANTS[frog]);
+                }
+            }
+            case ZOMBIE_NAUTILUS -> properties.getOptionalValue("minecraft:variant", String.class)
+                    .map(ZOMBIE_NAUTILUS_VARIANTS::get)
+                    .ifPresent(value -> entity.put(ChunkerEntityProperty.VARIANT, value));
+            case SALMON -> {
+                for (String group : groups) {
+                    String size = SALMON_SIZES.get(group);
+                    if (size != null) {
+                        entity.put(ChunkerEntityProperty.VARIANT, size);
+                    }
+                }
+            }
+            case SHULKER -> {
+                // Bedrock counts the colors from black, 16 is the undyed shulker (Java's default)
+                if (variant >= 0 && variant < 16) {
+                    ChunkerDyeColor.getColorByReversedID(variant)
+                            .ifPresent(color -> entity.put(ChunkerEntityProperty.COLOR, color));
+                }
+            }
+            case HOGLIN -> putFlag(entity, ChunkerEntityFlag.CANNOT_BE_HUNTED, groups.contains("unhuntable_adult"));
+            case PILLAGER, VINDICATOR -> putFlag(entity, ChunkerEntityFlag.PATROL_LEADER, isPatrolCaptain(input, groups));
+            case CREEPER -> putFlag(entity, ChunkerEntityFlag.POWERED, groups.contains("charged_creeper"));
+            case BOGGED -> putFlag(entity, ChunkerEntityFlag.BOGGED_SHEARED,
+                    groups.contains("bogged_sheared") || input.getByte("Sheared", (byte) 0) == 1);
+            case SNOW_GOLEM -> putFlag(entity, ChunkerEntityFlag.PUMPKIN,
+                    !groups.contains("snowman_sheared") && input.getByte("Sheared", (byte) 0) != 1);
+            case OCELOT -> putFlag(entity, ChunkerEntityFlag.TRUSTING,
+                    groups.contains("ocelot_trusting") || input.getByte("IsTrusting", (byte) 0) == 1);
+            case SKELETON_HORSE -> putFlag(entity, ChunkerEntityFlag.SKELETON_TRAP, groups.contains("skeleton_trap"));
+            case GOAT -> {
+                putFlag(entity, ChunkerEntityFlag.SCREAMING_GOAT, groups.contains("goat_screamer") || variant == 1);
+
+                // Bedrock counts the horns left, a goat which lost one keeps its left horn (which one isn't saved)
+                int horns = input.getOptionalValue("GoatHornCount", Number.class).map(Number::intValue).orElse(2);
+                putFlag(entity, ChunkerEntityFlag.LEFT_HORN, horns >= 1);
+                putFlag(entity, ChunkerEntityFlag.RIGHT_HORN, horns >= 2);
+            }
+            case CAMEL, CAMEL_HUSK -> {
+                if (groups.contains("camel_sitting") || groups.contains("camel_baby_sitting")) {
+                    entity.put(ChunkerEntityProperty.SITTING, true);
+                }
+            }
             case MOOSHROOM -> {
                 if (variant >= 0 && variant < MOOSHROOM_VARIANTS.length) {
                     entity.put(ChunkerEntityProperty.VARIANT, MOOSHROOM_VARIANTS[variant]);
@@ -369,6 +502,7 @@ public final class BedrockLivingEntityReader {
                 if (variant >= 0 && variant < FOX_VARIANTS.length) {
                     entity.put(ChunkerEntityProperty.VARIANT, FOX_VARIANTS[variant]);
                 }
+                entity.put(ChunkerEntityProperty.SITTING, input.getByte("Sitting", (byte) 0) == 1);
             }
             case SHEEP -> {
                 ChunkerDyeColor.getColorByID(input.getByte("Color", (byte) 0))
@@ -387,8 +521,14 @@ public final class BedrockLivingEntityReader {
                 boolean hasNectar = properties.getOptionalValue("minecraft:has_nectar", Byte.class).map(value -> value == 1)
                         .orElse(groups.contains("has_nectar"));
                 entity.put(ChunkerEntityProperty.HAS_NECTAR, hasNectar);
+
+                // A bee which has stung counts down to its death (mark variant 1)
+                putFlag(entity, ChunkerEntityFlag.HAS_STUNG, groups.contains("countdown_to_perish") || input.getInt("MarkVariant", 0) == 1);
             }
-            case TURTLE -> readHomePosition(input, entity);
+            case TURTLE -> {
+                readHomePosition(input, entity);
+                putFlag(entity, ChunkerEntityFlag.HAS_EGG, groups.contains("pregnant") || input.getByte("IsPregnant", (byte) 0) == 1);
+            }
             case PIGLIN -> {
                 entity.put(ChunkerEntityProperty.CANNOT_HUNT, !groups.contains("hunter"));
                 readInventory(resolvers, input, entity);
@@ -427,6 +567,11 @@ public final class BedrockLivingEntityReader {
             BedrockVillagerReader.read(resolvers, input, entity, groups);
         }
 
+        // A piglin brute guards the bastion it spawned in
+        if (type == ChunkerVanillaEntityType.PIGLIN_BRUTE) {
+            readBruteHome(input, entity);
+        }
+
         // Bedrock doesn't save a despawn timer which could be decoded, so it restarts (as for a new trader)
         if (type == ChunkerVanillaEntityType.WANDERING_TRADER || type == ChunkerVanillaEntityType.TRADER_LLAMA) {
             entity.put(ChunkerEntityProperty.DESPAWN_DELAY, 48000);
@@ -435,8 +580,74 @@ public final class BedrockLivingEntityReader {
 
     private static void readCollar(CompoundTag input, GenericEntity entity) {
         if (input.getByte("IsTamed", (byte) 0) != 1) return;
-        ChunkerDyeColor.getColorByID(input.getByte("Color", (byte) 14))
+        // Bedrock leaves out a Color of 0 (white)
+        ChunkerDyeColor.getColorByID(input.getByte("Color", (byte) 0))
                 .ifPresent(color -> entity.put(ChunkerEntityProperty.COLLAR_COLOR, color));
+    }
+
+    /**
+     * Get a variant from the component group which sets it (e.g. axolotl_wild), as Bedrock leaves out a Variant of 0.
+     *
+     * @param groups   the active component groups.
+     * @param prefix   the prefix of the groups.
+     * @param names    the group names after the prefix, in variant order.
+     * @param fallback the Variant to use if no group is active.
+     * @return the variant.
+     */
+    private static int getGroupVariant(Set<String> groups, String prefix, List<String> names, int fallback) {
+        for (int i = 0; i < names.size(); i++) {
+            if (groups.contains(prefix + names.get(i))) return i;
+        }
+        return fallback;
+    }
+
+    private static boolean isPatrolCaptain(CompoundTag input, Set<String> groups) {
+        return input.getByte("IsIllagerCaptain", (byte) 0) == 1 || groups.contains("illager_squad_captain")
+                || groups.contains("patrol_captain");
+    }
+
+    private static void putFlag(GenericEntity entity, ChunkerEntityFlag flag, boolean value) {
+        Map<ChunkerEntityFlag, Boolean> flags = entity.get(ChunkerEntityProperty.FLAGS);
+        if (flags == null) {
+            flags = new EnumMap<>(ChunkerEntityFlag.class);
+            entity.put(ChunkerEntityProperty.FLAGS, flags);
+        }
+        flags.put(flag, value);
+    }
+
+    private static void readSpawnTimer(CompoundTag input, GenericEntity entity, int index) {
+        // The ticks until a spawn_entity component drops its item (egg or scute), one entry per component entry
+        ListTag<CompoundTag, Map<String, Tag<?>>> entries = input.getList("entries", CompoundTag.class, null);
+        if (entries == null || entries.size() == 0) return;
+        CompoundTag entry = entries.get(index < entries.size() ? index : 0);
+        if (entry.getByte("StopSpawning", (byte) 0) == 1) return;
+        entry.getOptionalValue("SpawnTimer", Integer.class)
+                .ifPresent(timer -> entity.put(ChunkerEntityProperty.ITEM_DROP_TIME, Math.max(0, timer)));
+    }
+
+    private static void readCarriedBlock(BedrockResolvers resolvers, CompoundTag input, GenericEntity entity) {
+        ListTag<CompoundTag, Map<String, Tag<?>>> hand = input.getList("Mainhand", CompoundTag.class, null);
+        if (hand == null || hand.size() == 0) return;
+        CompoundTag block = hand.get(0).getCompound("Block");
+        if (block == null || hand.get(0).getByte("Count", (byte) 0) <= 0) return;
+        ChunkerBlockIdentifier identifier = resolvers.readBlock(new BedrockBlockCompoundTag(block, false));
+        if (!identifier.isAir()) {
+            entity.put(ChunkerEntityProperty.BLOCK_STATE, identifier);
+        }
+    }
+
+    private static void readBruteHome(CompoundTag input, GenericEntity entity) {
+        List<Float> homePos = input.getListValues("HomePos", FloatTag.class, null);
+        if (homePos == null || homePos.size() < 3) return;
+        Dimension dimension = switch (input.getInt("HomeDimensionId", 1)) {
+            case 0 -> Dimension.OVERWORLD;
+            case 2 -> Dimension.THE_END;
+            default -> Dimension.NETHER;
+        };
+        Map<ChunkerVillagerMemory, ChunkerGlobalPosition> memories = new EnumMap<>(ChunkerVillagerMemory.class);
+        memories.put(ChunkerVillagerMemory.HOME, new ChunkerGlobalPosition(dimension,
+                (int) Math.floor(homePos.get(0)), (int) Math.floor(homePos.get(1)), (int) Math.floor(homePos.get(2))));
+        entity.put(ChunkerEntityProperty.VILLAGER_MEMORIES, memories);
     }
 
     private static void readHomePosition(CompoundTag input, GenericEntity entity) {

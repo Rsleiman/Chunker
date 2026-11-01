@@ -17,6 +17,8 @@ public class DecoratedPotBlockEntity extends BlockEntity {
     private ChunkerItemStackIdentifier front = ChunkerVanillaItemType.BRICK;
     @Nullable
     private ChunkerItemStack item;
+    @Nullable
+    private String lootTable;
 
     /**
      * Get the item which is stored inside the decorated pot.
@@ -108,16 +110,35 @@ public class DecoratedPotBlockEntity extends BlockEntity {
         this.front = front;
     }
 
+    /**
+     * Get the loot table which fills the pot when it's broken (Java identifier).
+     *
+     * @return the loot table or null if there is none.
+     */
+    @Nullable
+    public String getLootTable() {
+        return lootTable;
+    }
+
+    /**
+     * Set the loot table which fills the pot when it's broken.
+     *
+     * @param lootTable the loot table (Java identifier) or null.
+     */
+    public void setLootTable(@Nullable String lootTable) {
+        this.lootTable = lootTable;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof DecoratedPotBlockEntity that)) return false;
         if (!super.equals(o)) return false;
-        return Objects.equals(getBack(), that.getBack()) && Objects.equals(getLeft(), that.getLeft()) && Objects.equals(getRight(), that.getRight()) && Objects.equals(getFront(), that.getFront());
+        return Objects.equals(getBack(), that.getBack()) && Objects.equals(getLeft(), that.getLeft()) && Objects.equals(getRight(), that.getRight()) && Objects.equals(getFront(), that.getFront()) && Objects.equals(getLootTable(), that.getLootTable());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), getBack(), getLeft(), getRight(), getFront());
+        return Objects.hash(super.hashCode(), getBack(), getLeft(), getRight(), getFront(), getLootTable());
     }
 }
