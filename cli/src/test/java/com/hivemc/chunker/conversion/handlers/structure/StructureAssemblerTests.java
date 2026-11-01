@@ -257,6 +257,71 @@ public class StructureAssemblerTests {
         assertEquals(box, starts.get(0).effectiveBox());
     }
 
+    /**
+     * Ralph's world seed, whose camp at chunks (14..15, 19..20) is where Java's placement expects one, in chunk (15, 20).
+     */
+    private static final long RALPH_SEED = 6816931754681749494L;
+
+    private static List<ChunkerStructureVolume> camp(int minChunkX, int minChunkZ) {
+        List<ChunkerStructureVolume> volumes = new ArrayList<>();
+        ChunkerBoundingBox whole = new ChunkerBoundingBox(minChunkX * 16 + 4, 63, minChunkZ * 16 + 4, minChunkX * 16 + 27, 72, minChunkZ * 16 + 27);
+        for (int x = minChunkX; x <= minChunkX + 1; x++) {
+            for (int z = minChunkZ; z <= minChunkZ + 1; z++) {
+                ChunkerBoundingBox clipped = whole.clipToChunk(x, z);
+                volumes.add(new ChunkerStructureVolume(Dimension.OVERWORLD, "minecraft:abandoned_camp_forest", new ChunkCoordPair(x, z), clipped, List.of(clipped)));
+            }
+        }
+        return volumes;
+    }
+
+    @Test
+    public void testStartIsStoredWhereJavaLooksForIt() {
+        List<ChunkerStructureVolume> volumes = camp(14, 19);
+        LongSet written = StructureTestData.chunks(volumes);
+
+        // Without the seed the middle of the camp is used (the lowest chunk of the four)
+        List<StructureAssembler.AssembledStart> withoutSeed = StructureAssembler.assemble("minecraft:abandoned_camp_forest", volumes, written);
+        assertEquals(1, withoutSeed.size());
+        assertEquals(14, withoutSeed.get(0).chunkX());
+        assertEquals(19, withoutSeed.get(0).chunkZ());
+
+        // With the seed the start goes to Java's placement chunk, and the camp is padded as a terrain adapting structure
+        List<StructureAssembler.AssembledStart> withSeed = StructureAssembler.assemble("minecraft:abandoned_camp_forest", volumes, written, RALPH_SEED);
+        assertEquals(1, withSeed.size());
+        assertEquals(15, withSeed.get(0).chunkX());
+        assertEquals(20, withSeed.get(0).chunkZ());
+        assertEquals(4, withSeed.get(0).pieces().size());
+        assertEquals(new ChunkerBoundingBox(14 * 16 + 4 - 12, 63 - 12, 19 * 16 + 4 - 12, 14 * 16 + 27 + 12, 72 + 12, 19 * 16 + 27 + 12), withSeed.get(0).effectiveBox());
+        assertReferencesValid(StructureAssembler.assembleDimension(volumes, written, RALPH_SEED));
+
+        // A camp whose chunks don't hold Java's placement chunk keeps the middle
+        List<ChunkerStructureVolume> elsewhere = camp(100, 100);
+        List<StructureAssembler.AssembledStart> fallback = StructureAssembler.assemble("minecraft:abandoned_camp_forest", elsewhere, StructureTestData.chunks(elsewhere), RALPH_SEED);
+        assertEquals(100, fallback.get(0).chunkX());
+        assertEquals(100, fallback.get(0).chunkZ());
+    }
+
+    @Test
+    public void testJavaPlacementChunks() {
+        // Computed by RandomSpreadStructurePlacement#getPotentialStructureChunk for Ralph's seed
+        JavaStructurePlacement camps = JavaStructurePlacement.of("minecraft:abandoned_camp_swamp");
+        assertNotNull(camps);
+        assertTrue(camps.isPlacementChunk(RALPH_SEED, 15, 20));
+        assertTrue(camps.isPlacementChunk(RALPH_SEED, 12, -17));
+        assertTrue(camps.isPlacementChunk(RALPH_SEED, 118, -63));
+        assertFalse(camps.isPlacementChunk(RALPH_SEED, 14, 19));
+
+        JavaStructurePlacement chambers = JavaStructurePlacement.of("minecraft:trial_chambers");
+        assertNotNull(chambers);
+        assertTrue(chambers.isPlacementChunk(RALPH_SEED, 4, -89));
+        assertTrue(chambers.isPlacementChunk(RALPH_SEED, 41, -51));
+        assertFalse(chambers.isPlacementChunk(RALPH_SEED, 3, -93));
+
+        assertNull(JavaStructurePlacement.of("minecraft:monument"));
+        assertNull(JavaStructurePlacement.of("minecraft:mineshaft"));
+        assertEquals(18, JavaStructurePlacement.ABANDONED_CAMPS.size());
+    }
+
     @Test
     public void testRootOnlyInstanceProducesNoStart() {
         ChunkerBoundingBox box = new ChunkerBoundingBox(0, 40, 0, 15, 80, 15);

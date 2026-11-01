@@ -676,7 +676,9 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
                                 }
                                 continue;
                             }
-                            candidates.add(volume);
+                            candidates.add(javaId.equals(volume.getStructureId()) ? volume : new ChunkerStructureVolume(
+                                    volume.getDimension(), javaId, volume.getSourceChunk(), volume.getRoot(), volume.getPieces()
+                            ));
                         }
                     } catch (Exception e) {
                         converter.logNonFatalException(e);

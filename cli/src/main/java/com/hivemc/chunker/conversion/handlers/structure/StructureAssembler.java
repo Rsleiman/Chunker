@@ -6,6 +6,7 @@ import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
@@ -27,11 +28,17 @@ public class StructureAssembler {
     /**
      * The structures which adapt to the terrain, Java inflates their bounding box by 12 (Structure#adjustBoundingBox).
      */
-    public static final Set<String> TERRAIN_ADAPTING = Set.of(
-            "minecraft:pillager_outpost", "minecraft:village_desert", "minecraft:village_plains",
-            "minecraft:village_savanna", "minecraft:village_snowy", "minecraft:village_taiga",
-            "minecraft:ancient_city", "minecraft:trial_chambers", "minecraft:trail_ruins", "minecraft:bastion_remnant"
-    );
+    public static final Set<String> TERRAIN_ADAPTING;
+
+    static {
+        Set<String> terrainAdapting = new HashSet<>(Set.of(
+                "minecraft:pillager_outpost", "minecraft:village_desert", "minecraft:village_plains",
+                "minecraft:village_savanna", "minecraft:village_snowy", "minecraft:village_taiga",
+                "minecraft:ancient_city", "minecraft:trial_chambers", "minecraft:trail_ruins", "minecraft:bastion_remnant"
+        ));
+        terrainAdapting.addAll(JavaStructurePlacement.ABANDONED_CAMPS); // beard_thin
+        TERRAIN_ADAPTING = Set.copyOf(terrainAdapting);
+    }
 
     private static final int TERRAIN_ADAPTATION_INFLATE = 12;
     private static final int MONUMENT_SIZE = 58;
@@ -110,6 +117,18 @@ public class StructureAssembler {
      * @return the starts and references to write.
      */
     public static DimensionStructures assembleDimension(List<ChunkerStructureVolume> volumes, LongSet writtenColumns) {
+        return assembleDimension(volumes, writtenColumns, null);
+    }
+
+    /**
+     * Assemble all the structures of a dimension.
+     *
+     * @param volumes        the volumes in the dimension (can be of any structure).
+     * @param writtenColumns the packed chunk columns which are written.
+     * @param seed           the world seed, used to store each start in the chunk where Java looks for it, or null.
+     * @return the starts and references to write.
+     */
+    public static DimensionStructures assembleDimension(List<ChunkerStructureVolume> volumes, LongSet writtenColumns, @Nullable Long seed) {
         // Group by identifier (sorted so the output is deterministic)
         Map<String, List<ChunkerStructureVolume>> byId = new TreeMap<>();
         LongSet written = new LongOpenHashSet(writtenColumns);
@@ -121,7 +140,7 @@ public class StructureAssembler {
         Long2ObjectOpenHashMap<Map<String, AssembledStart>> startsByChunk = new Long2ObjectOpenHashMap<>();
         Long2ObjectOpenHashMap<Map<String, LongSet>> referencesByChunk = new Long2ObjectOpenHashMap<>();
         for (Map.Entry<String, List<ChunkerStructureVolume>> entry : byId.entrySet()) {
-            for (AssembledStart start : assemble(entry.getKey(), entry.getValue(), written)) {
+            for (AssembledStart start : assemble(entry.getKey(), entry.getValue(), written, seed)) {
                 long startPacked = ChunkerStructureVolume.packChunk(start.chunkX(), start.chunkZ());
                 startsByChunk.computeIfAbsent(startPacked, (ignored) -> new TreeMap<>()).put(start.id(), start);
 
@@ -157,6 +176,19 @@ public class StructureAssembler {
      * @return the assembled starts.
      */
     public static List<AssembledStart> assemble(String javaStructureId, List<ChunkerStructureVolume> volumes, LongSet writtenColumns) {
+        return assemble(javaStructureId, volumes, writtenColumns, null);
+    }
+
+    /**
+     * Assemble the starts for a single structure.
+     *
+     * @param javaStructureId the Java identifier of the structure.
+     * @param volumes         the volumes of that structure in a single dimension.
+     * @param writtenColumns  the packed chunk columns which are written.
+     * @param seed            the world seed, used to store each start in the chunk where Java looks for it, or null.
+     * @return the assembled starts.
+     */
+    public static List<AssembledStart> assemble(String javaStructureId, List<ChunkerStructureVolume> volumes, LongSet writtenColumns, @Nullable Long seed) {
         // Create the units in a deterministic order
         List<ChunkerStructureVolume> sorted = new ArrayList<>(volumes);
         sorted.sort(Comparator.comparingInt((ChunkerStructureVolume volume) -> volume.getSourceChunk().chunkX())
@@ -197,7 +229,7 @@ public class StructureAssembler {
                 }
             }
             if (!hasPieces) continue;
-            splitInstance(javaStructureId, instance, usedStartChunks, output);
+            splitInstance(javaStructureId, instance, usedStartChunks, output, seed);
         }
         return output;
     }
@@ -270,13 +302,26 @@ public class StructureAssembler {
     }
 
     /**
-     * Split an instance into starts where each start only covers chunks Java will reference.
+     * Split an instance into starts where each start only covers chunks Java will reference. When the seed is known,
+     * a chunk where Java's placement looks for the structure is preferred as the start, so /locate and explorer maps
+     * find it.
      */
-    private static void splitInstance(String javaStructureId, List<Unit> instance, LongSet usedStartChunks, List<AssembledStart> output) {
+    private static void splitInstance(String javaStructureId, List<Unit> instance, LongSet usedStartChunks, List<AssembledStart> output, @Nullable Long seed) {
         // The chunks which have not been assigned to a start yet
         Set<Long> remaining = new TreeSet<>();
         for (Unit unit : instance) {
             remaining.add(unit.packed());
+        }
+
+        // The chunks of the instance which Java checks for a start
+        JavaStructurePlacement placement = seed == null ? null : JavaStructurePlacement.of(javaStructureId);
+        LongSet placementChunks = new LongOpenHashSet();
+        if (placement != null) {
+            for (long packed : remaining) {
+                if (placement.isPlacementChunk(seed, ChunkerStructureVolume.unpackChunkX(packed), ChunkerStructureVolume.unpackChunkZ(packed))) {
+                    placementChunks.add(packed);
+                }
+            }
         }
 
         while (!remaining.isEmpty()) {
@@ -293,12 +338,20 @@ public class StructureAssembler {
             double centreX = (minX + maxX) / 2.0;
             double centreZ = (minZ + maxZ) / 2.0;
 
-            // Pick the start chunk (the closest unused chunk to the centre)
+            // Pick the start chunk (the closest unused chunk to the centre, preferring Java's placement chunks)
+            boolean preferPlacement = false;
+            for (long packed : remaining) {
+                if (placementChunks.contains(packed) && !usedStartChunks.contains(packed)) {
+                    preferPlacement = true;
+                    break;
+                }
+            }
             long best = 0;
             boolean found = false;
             double bestChessboard = 0, bestEuclidean = 0;
             for (long packed : remaining) {
                 if (usedStartChunks.contains(packed)) continue;
+                if (preferPlacement && !placementChunks.contains(packed)) continue;
                 double dx = Math.abs(ChunkerStructureVolume.unpackChunkX(packed) - centreX);
                 double dz = Math.abs(ChunkerStructureVolume.unpackChunkZ(packed) - centreZ);
                 double chessboard = Math.max(dx, dz);

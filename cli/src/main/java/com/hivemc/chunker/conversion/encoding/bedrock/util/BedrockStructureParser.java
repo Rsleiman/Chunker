@@ -1,5 +1,6 @@
 package com.hivemc.chunker.conversion.encoding.bedrock.util;
 
+import com.hivemc.chunker.conversion.handlers.structure.JavaStructurePlacement;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerBoundingBox;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerStructureVolume;
@@ -39,6 +40,25 @@ public class BedrockStructureParser {
     );
 
     /**
+     * The prefix of the abandoned camp identifiers, which end with the name of the biome on both editions.
+     */
+    private static final String ABANDONED_CAMP_PREFIX = "minecraft:abandoned_camp_";
+
+    /**
+     * The camp biomes which Bedrock names with the biome's old name, mapped to the Java name (as in ChunkerBiome).
+     */
+    private static final Map<String, String> ABANDONED_CAMP_BIOMES = Map.of(
+            "birch_forest_mutated", "old_growth_birch_forest",
+            "cold_taiga", "snowy_taiga",
+            "extreme_hills_plus_trees", "windswept_forest",
+            "jungle_edge", "sparse_jungle",
+            "mega_taiga", "old_growth_pine_taiga",
+            "mesa_plateau_stone", "wooded_badlands",
+            "redwood_taiga_mutated", "old_growth_spruce_taiga",
+            "swampland", "swamp"
+    );
+
+    /**
      * Get the Java structure identifier for a structure read from Bedrock.
      *
      * @param bedrockId the identifier read from Bedrock.
@@ -46,11 +66,21 @@ public class BedrockStructureParser {
      */
     @Nullable
     public static String toJavaStructureId(String bedrockId) {
-        return SUPPORTED_STRUCTURES.contains(bedrockId) ? bedrockId : null;
+        if (SUPPORTED_STRUCTURES.contains(bedrockId)) return bedrockId;
+        if (bedrockId.startsWith(ABANDONED_CAMP_PREFIX)) {
+            String biome = bedrockId.substring(ABANDONED_CAMP_PREFIX.length());
+            String javaId = ABANDONED_CAMP_PREFIX + ABANDONED_CAMP_BIOMES.getOrDefault(biome, biome);
+            return JavaStructurePlacement.ABANDONED_CAMPS.contains(javaId) ? javaId : null;
+        }
+        return null;
     }
 
     /**
      * Parse the AABBVolumes value (chunk key tag 119) of a chunk. Every box is already clipped to the chunk.
+     * <p>
+     * The value holds a table of the structure identifiers in the chunk, then every box with its key, then two lists
+     * which link each box key to a structure in the table and say whether it is that structure's whole box (the
+     * second list, used by structures with mob spawns such as fortresses, has one more value).
      *
      * @param value        the value from the database.
      * @param dimension    the dimension the chunk is inside.
@@ -66,47 +96,87 @@ public class BedrockStructureParser {
                 throw new IllegalArgumentException("Unsupported AABBVolumes version " + version);
             }
 
-            int volumeCount = readCount(buffer, 4 + 2 + 4 + 4 + 4);
-            List<ChunkerStructureVolume> output = new ArrayList<>(volumeCount);
-            for (int i = 0; i < volumeCount; i++) {
-                buffer.getInt(); // Unknown (always 0)
+            // Read the structure identifiers, keyed by their index
+            int idCount = readCount(buffer, 4 + 2);
+            Map<Integer, String> ids = new LinkedHashMap<>(idCount);
+            for (int i = 0; i < idCount; i++) {
+                int index = buffer.getInt();
                 int idLength = buffer.getShort() & 0xFFFF;
                 if (idLength > buffer.remaining()) throw new IllegalArgumentException("Structure id exceeds the value");
                 byte[] idBytes = new byte[idLength];
                 buffer.get(idBytes);
-                String id = new String(idBytes, StandardCharsets.UTF_8);
-
-                // Read the boxes
-                int boxCount = readCount(buffer, 28);
-                ChunkerBoundingBox root = null;
-                List<ChunkerBoundingBox> pieces = new ArrayList<>(boxCount);
-                for (int j = 0; j < boxCount; j++) {
-                    int key = buffer.getInt();
-                    ChunkerBoundingBox box = new ChunkerBoundingBox(
-                            buffer.getInt(), buffer.getInt(), buffer.getInt(),
-                            buffer.getInt(), buffer.getInt(), buffer.getInt()
-                    );
-                    if (box.minX() > box.maxX() || box.minY() > box.maxY() || box.minZ() > box.maxZ()) {
-                        throw new IllegalArgumentException("Inverted bounding box " + box);
-                    }
-                    if (key == ROOT_KEY) {
-                        root = box;
-                    } else {
-                        pieces.add(box);
-                    }
+                if (ids.put(index, new String(idBytes, StandardCharsets.UTF_8)) != null) {
+                    throw new IllegalArgumentException("Duplicate structure index " + index);
                 }
+            }
 
-                // Skip the remaining maps (key, a, isRoot) and (key, a, b, isRoot)
-                skip(buffer, readCount(buffer, 12), 12);
-                skip(buffer, readCount(buffer, 16), 16);
-
-                if (root != null || !pieces.isEmpty()) {
-                    output.add(new ChunkerStructureVolume(dimension, id, chunk, root, pieces));
+            // Read the boxes, keyed by their key
+            int boxCount = readCount(buffer, 28);
+            Map<Integer, ChunkerBoundingBox> boxes = new LinkedHashMap<>(boxCount);
+            for (int i = 0; i < boxCount; i++) {
+                int key = buffer.getInt();
+                ChunkerBoundingBox box = new ChunkerBoundingBox(
+                        buffer.getInt(), buffer.getInt(), buffer.getInt(),
+                        buffer.getInt(), buffer.getInt(), buffer.getInt()
+                );
+                if (box.minX() > box.maxX() || box.minY() > box.maxY() || box.minZ() > box.maxZ()) {
+                    throw new IllegalArgumentException("Inverted bounding box " + box);
                 }
+                if (boxes.put(key, box) != null) throw new IllegalArgumentException("Duplicate box key " + key);
+            }
+
+            // Read the links (key, structure index, isRoot) and (key, structure index, unknown, isRoot)
+            Map<Integer, int[]> links = new HashMap<>();
+            int linkCount = readCount(buffer, 12);
+            for (int i = 0; i < linkCount; i++) {
+                links.put(buffer.getInt(), new int[]{buffer.getInt(), buffer.getInt()});
+            }
+            linkCount = readCount(buffer, 16);
+            for (int i = 0; i < linkCount; i++) {
+                int key = buffer.getInt();
+                int index = buffer.getInt();
+                buffer.getInt(); // Unknown (0, or -3 for outposts and swamp huts)
+                links.put(key, new int[]{index, buffer.getInt()});
             }
 
             if (buffer.hasRemaining()) {
                 throw new IllegalArgumentException(buffer.remaining() + " unexpected trailing bytes");
+            }
+
+            // Group the boxes by structure, in the order of the table
+            Map<Integer, ChunkerBoundingBox> roots = new HashMap<>();
+            Map<Integer, List<ChunkerBoundingBox>> pieces = new HashMap<>();
+            for (Map.Entry<Integer, ChunkerBoundingBox> entry : boxes.entrySet()) {
+                int[] link = links.get(entry.getKey());
+                int index;
+                boolean isRoot;
+                if (link != null) {
+                    index = link[0];
+                    isRoot = link[1] != 0;
+                } else if (ids.size() == 1) {
+                    // An unlinked box in a chunk with a single structure belongs to it
+                    index = ids.keySet().iterator().next();
+                    isRoot = entry.getKey() == ROOT_KEY;
+                } else {
+                    throw new IllegalArgumentException("Box " + entry.getKey() + " is not linked to a structure");
+                }
+                if (!ids.containsKey(index)) throw new IllegalArgumentException("Unknown structure index " + index);
+                if (isRoot) {
+                    if (roots.put(index, entry.getValue()) != null) {
+                        throw new IllegalArgumentException("Two root boxes for structure index " + index);
+                    }
+                } else {
+                    pieces.computeIfAbsent(index, (ignored) -> new ArrayList<>()).add(entry.getValue());
+                }
+            }
+
+            List<ChunkerStructureVolume> output = new ArrayList<>(ids.size());
+            for (Map.Entry<Integer, String> entry : ids.entrySet()) {
+                ChunkerBoundingBox root = roots.get(entry.getKey());
+                List<ChunkerBoundingBox> structurePieces = pieces.getOrDefault(entry.getKey(), new ArrayList<>());
+                if (root != null || !structurePieces.isEmpty()) {
+                    output.add(new ChunkerStructureVolume(dimension, entry.getValue(), chunk, root, structurePieces));
+                }
             }
             return output;
         } catch (BufferUnderflowException | IllegalArgumentException e) {
@@ -193,16 +263,5 @@ public class BedrockStructureParser {
             throw new IllegalArgumentException("Count " + count + " exceeds the value");
         }
         return (int) count;
-    }
-
-    /**
-     * Skip over a number of fixed size entries.
-     *
-     * @param buffer    the buffer to skip in.
-     * @param count     the number of entries.
-     * @param entrySize the size of each entry.
-     */
-    private static void skip(ByteBuffer buffer, int count, int entrySize) {
-        buffer.position(buffer.position() + count * entrySize);
     }
 }

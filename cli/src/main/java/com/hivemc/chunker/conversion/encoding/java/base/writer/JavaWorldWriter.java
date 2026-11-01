@@ -4,6 +4,7 @@ import com.hivemc.chunker.conversion.encoding.base.Converter;
 import com.hivemc.chunker.conversion.encoding.base.writer.ColumnWriter;
 import com.hivemc.chunker.conversion.encoding.base.writer.WorldWriter;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.JavaResolvers;
+import com.hivemc.chunker.conversion.handlers.structure.JavaStructurePlacement;
 import com.hivemc.chunker.conversion.handlers.structure.StructureAssembler;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerStructureVolume;
@@ -93,14 +94,24 @@ public class JavaWorldWriter implements WorldWriter {
                 Optional<ChunkerLevel> level = converter.level();
                 if (level.isEmpty()) return Optional.empty();
 
-                // Collect the volumes of this dimension
+                // Collect the volumes of this dimension (abandoned camps only exist from 26.3)
+                boolean camps = resolvers.dataVersion().getVersion().isGreaterThanOrEqual(26, 3, 0);
                 List<ChunkerStructureVolume> volumes = level.get().getStructureVolumes().stream()
                         .filter(volume -> dimension.equals(volume.getDimension()))
+                        .filter(volume -> camps || !JavaStructurePlacement.ABANDONED_CAMPS.contains(volume.getStructureId()))
                         .toList();
                 if (volumes.isEmpty()) return Optional.empty();
 
+                // The seed lets each start be stored where Java's placement looks for it
+                Long seed = null;
+                try {
+                    seed = Long.parseLong(level.get().getSettings().RandomSeed);
+                } catch (NumberFormatException e) {
+                    // Without a seed the starts are stored in the middle of the structure
+                }
+
                 LongSet columns = level.get().getStructureColumns().get(dimension);
-                StructureAssembler.DimensionStructures result = StructureAssembler.assembleDimension(volumes, columns != null ? columns : new LongOpenHashSet());
+                StructureAssembler.DimensionStructures result = StructureAssembler.assembleDimension(volumes, columns != null ? columns : new LongOpenHashSet(), seed);
                 return result.isEmpty() ? Optional.empty() : Optional.of(result);
             } catch (Exception e) {
                 converter.logNonFatalException(new Exception("Failed to assemble structures for " + dimension.getIdentifier(), e));

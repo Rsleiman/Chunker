@@ -12,6 +12,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -106,6 +107,40 @@ public class BedrockStructureParserTests {
     }
 
     @Test
+    public void testTwoStructuresInOneChunk() {
+        // Chunk (118, -64) of Ralph's world: a trial chamber under a swamp abandoned camp
+        byte[] value = HexFormat.of().parseHex(
+                "0100000002000000020000002200" + hex("minecraft:abandoned_camp_swampland") +
+                "000000001800" + hex("minecraft:trial_chambers") +
+                "03000000" +
+                "0400000060070000" + "3f00000009fcffff6707000048000000" + "0ffcffff" +
+                "0300000060070000" + "3d00000009fcffff6807000048000000" + "0ffcffff" +
+                "0100000060070000" + "d4ffffff00fcffff6f070000fcffffff" + "0ffcffff" +
+                "03000000" + "040000000200000000000000" + "030000000200000001000000" + "010000000000000001000000" +
+                "00000000");
+
+        List<Exception> errors = new ArrayList<>();
+        List<ChunkerStructureVolume> volumes = BedrockStructureParser.parseAABBVolumes(
+                value, Dimension.OVERWORLD, new ChunkCoordPair(118, -64), errors::add);
+        assertEquals(List.of(), errors);
+        assertEquals(2, volumes.size());
+
+        ChunkerStructureVolume camp = volumes.get(0);
+        assertEquals("minecraft:abandoned_camp_swampland", camp.getStructureId());
+        assertEquals(new ChunkerBoundingBox(1888, 61, -1015, 1896, 72, -1009), camp.getRoot());
+        assertEquals(List.of(new ChunkerBoundingBox(1888, 63, -1015, 1895, 72, -1009)), camp.getPieces());
+
+        ChunkerStructureVolume chamber = volumes.get(1);
+        assertEquals("minecraft:trial_chambers", chamber.getStructureId());
+        assertEquals(new ChunkerBoundingBox(1888, -44, -1024, 1903, -4, -1009), chamber.getRoot());
+        assertTrue(chamber.getPieces().isEmpty());
+    }
+
+    private static String hex(String text) {
+        return HexFormat.of().formatHex(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    @Test
     public void testTruncatedValuesAreRejected() throws IOException {
         List<StructureTestData.Sample> samples = StructureTestData.load("aabb-samples.txt");
         byte[] value = find(samples, 0, 1, -14).value();
@@ -173,9 +208,16 @@ public class BedrockStructureParserTests {
     public void testJavaIdMapping() {
         assertEquals("minecraft:fortress", BedrockStructureParser.toJavaStructureId("minecraft:fortress"));
         assertEquals("minecraft:trial_chambers", BedrockStructureParser.toJavaStructureId("minecraft:trial_chambers"));
-        assertNull(BedrockStructureParser.toJavaStructureId("minecraft:abandoned_camp_taiga"));
         assertNull(BedrockStructureParser.toJavaStructureId("fortress"));
         assertEquals(34, BedrockStructureParser.SUPPORTED_STRUCTURES.size());
+
+        // Abandoned camps keep their biome name, except where Bedrock uses the biome's old name
+        assertEquals("minecraft:abandoned_camp_taiga", BedrockStructureParser.toJavaStructureId("minecraft:abandoned_camp_taiga"));
+        assertEquals("minecraft:abandoned_camp_forest", BedrockStructureParser.toJavaStructureId("minecraft:abandoned_camp_forest"));
+        assertEquals("minecraft:abandoned_camp_swamp", BedrockStructureParser.toJavaStructureId("minecraft:abandoned_camp_swampland"));
+        assertEquals("minecraft:abandoned_camp_old_growth_pine_taiga", BedrockStructureParser.toJavaStructureId("minecraft:abandoned_camp_mega_taiga"));
+        assertEquals("minecraft:abandoned_camp_wooded_badlands", BedrockStructureParser.toJavaStructureId("minecraft:abandoned_camp_mesa_plateau_stone"));
+        assertNull(BedrockStructureParser.toJavaStructureId("minecraft:abandoned_camp_barrel"));
     }
 
     private static void putSpawner(ByteBuffer buffer, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, byte type) {
