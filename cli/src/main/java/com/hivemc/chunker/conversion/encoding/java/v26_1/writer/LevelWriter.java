@@ -103,14 +103,8 @@ public class LevelWriter extends com.hivemc.chunker.conversion.encoding.java.v1_
                 (CompoundTag) data.remove("dragon_fight"),
                 true
         );
-        writeIfPresentToFile(
-                new File(
-                        dataDirectory,
-                        "game_rules.dat"
-                ),
-                (CompoundTag) data.remove("game_rules"),
-                true
-        );
+        // Game rules aren't carried over: without game_rules.dat the server starts with its own defaults
+        data.remove("game_rules");
         writeIfPresentToFile(
                 new File(
                         dataDirectory,
